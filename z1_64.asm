@@ -21,26 +21,29 @@ section .data
 
     flag db 0
 
-    ;0xa is 10('/n')
+    ;0xa is 10('/n'), 0x9 is '/t'
     ;Operator $ read the current position of the diclaration and all next diclarations, 
     ;due to we declare it berfor the message
 
     h_argument db 'provided -h arg', 0xa  ; -h argument
     len_h_argument equ $ - h_argument ; Length of the -h argument
 
-    k_argument db 'provided -k arg', 0xa ; -k argument
-    len_k_argument equ $ - k_argument ; Length of the -k argument
+    r_argument db 'provided -r arg', 0xa ; -r argument
+    len_r_argument equ $ - r_argument ; Length of the -r argument
 
-    not_provided_arguments db 'Not provided arguments', 0xa ; Message
-    len_not_provided_arguments equ $ - not_provided_arguments ; Message length 
+    not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
+    len_not_provided_correct_arguments equ $ - not_provided_correct_arguments ; Message length 
 
     comp_error_msg db 'Comp error occured', 0xa ;
     len_comp_error_msg equ $ - comp_error_msg
 
+    help_msg dq 'Help:  informácie o programe a jeho použití: ', 0xa,'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter', 0xa,  'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa
+    len_help_msg equ $ - help_msg
+
     ; numbers db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ; Array of numbers
 
 
-section .bss ; segment of non-initialized dataф
+section .bss ; segment of non-initialized data
     ; num resb 5 ; Allocating 5 bytes for the num variable
     buffer resb BufferSize64 ; Reserve 65kb for buffer
     output_vector resb BufferSize64 ; Output
@@ -68,20 +71,23 @@ _start:
 
     ; Check first argument
     cmp byte [rdi], '-'
-    jne no_arguments ; If not provided arguments, then go to single program execution
+    jne call_sxternal_function ; If not provided arguments, then go to single program execution
 
     cmp byte [rdi + 1], 'h' ; Check if the argument is -h(Help for user)
     je isHArgument
 
-    ; cmp byte [rdi + 1], 'k' ; Check if first argument is another argument then -h
-    ; je .isKArgument
+    ;CONTROL ANOTHER ARGUMENTS(-r)
+    cmp byte [rdi + 1], 'r' ; Check if the argument is -r(Recursive output)
+    je isRArgument
+    jne no_arguments ; NOT PROVIDED CORRECT ARGUMENTS
 
-    call external_function  ; Call external function
+    ;normal_exit
 
-    normal_exit
+call_sxternal_function:
+    call external_function  ; Call external function, which not provided correct argument
 
 no_arguments:
-    print_string not_provided_arguments, len_not_provided_arguments
+    print_string not_provided_correct_arguments, len_not_provided_correct_arguments
 
     open_file filename, O_RDONLY, 0644
     ; Syscall return the result of the operation in the rax register, so we need check it for errors
@@ -97,76 +103,92 @@ no_arguments:
 
     ; print_string buffer, BufferSize64
 
-
-    call read_loop
+    jmp read_loop
 
 
     close_file r15 ; Close the file 
 
     normal_exit
 
+    ret
+
 read_loop:
     read_string_from_the_file r15, buffer, BufferSize64
     cmp rax, 0
-    jle normal_exit; End of file or error 
+    jl comp_error ; Error during read
+    ;je end_of_file ; End of file
 
-    ;DO OPERATION WITH BUFFER
+    ;DO OPERATION WITH BUFFER, we use tow arays for readed input and output numbers
     mov r14, 0 ; Count of numbers
     mov r13, 0 ; iterator
+    ; output_vector ; Is output vector for numbers
+    mov r12, 0 ; Iterator for output vector
 
     ; Loop for counting numbers
     jmp count_numbers_loop
+    ;IT NEED Return !!!, call 
 
+    ; ; end_read:
+    ; print_string r14, 5
+    ; jmp read_loop
 
-
-
-    ; end_read:
+end_of_file:
+    print_string output_vector, BufferSize64
     print_string r14, 5
 
-    jmp read_loop
-
+    jmp normal_exit
 
 count_numbers_loop:
     ; flag if 0
 
+    ; Check end of the buffer
+    cmp r13, BufferSize64
+    jge end_of_file ;ret 
+
     mov r8b, byte [buffer + r13]
 
-    cmp r8b, 0
+    cmp r8b, '0'
     je found_number
 
-    cmp r8b, 1
+    cmp r8b, '1'
     je found_number
 
-    cmp r8b, 2
+    cmp r8b, '2'
     je found_number
 
-    cmp r8b, 3
+    cmp r8b, '3'
     je found_number
 
-    cmp r8b, 4
+    cmp r8b, '4'
     je found_number
 
-    cmp r8b, 5
+    cmp r8b, '5'
     je found_number
 
-    cmp r8b, 6
+    cmp r8b, '6'
     je found_number
 
-    cmp r8b, 7
+    cmp r8b, '7'
     je found_number
 
-    cmp r8b, 8
+    cmp r8b, '8'
     je found_number
 
-    cmp r8b, 9
+    cmp r8b, '9'
     je found_number
 
     inc r13
     jmp count_numbers_loop
 
 found_number:
-    inc r13
-    mov r10b, byte [buffer + r13]
+    ; Write sign to the output vector
+    mov r9b, byte [buffer + r13]
+    mov byte [output_vector + r12], r9b 
+    inc r12 ; Increment the ouput vector iterator
+    ; End of writing in the output vector
+
+    inc r13; Found the num, and inc the it for input buffer
+    mov r10b, byte [buffer + r13]; Check the next value 
 
     cmp r10b, '0'
     je found_number
@@ -198,10 +220,19 @@ found_number:
     cmp r10b, '9'
     je found_number
 
-    jmp found_digit
+    cmp r10b, '.'
+    je found_number
 
-found_digit:
-    inc r14
+    jmp up_digit
+
+up_digit:
+    ; print_string output_vector, BufferSize64
+    inc r14; Count of numbers
+
+    ; Add the white space
+    mov byte [output_vector + r12], 0x20 ; Space(0x20)
+    inc r12 ; Increment the ouput vector iterator
+
     jmp count_numbers_loop
 
 comp_error:
@@ -209,12 +240,12 @@ comp_error:
 
 isHArgument:
     ; Provided Instructions
-
     print_string h_argument, len_h_argument
+    print_string help_msg, len_help_msg
 
     normal_exit            ; exit the program
 
-isKArgument:
-    print_string k_argument, len_k_argument
+isRArgument:
+    print_string r_argument, len_r_argument
 
     normal_exit             ; exit the program
