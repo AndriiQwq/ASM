@@ -1,27 +1,28 @@
-
+section .data
+    hello_msg db 'External, world!', 0xa
+    hello_len equ $ - hello_msg
 
 section .text
     global external_function    
 
-section .data
-    hello_msg db 'Hello, world!', 0xa
-    hello_len equ $ - hello_msg
-
-
-; TODO
 external_function:
-    push rbp           ; Save old base pointer
-    mov rbp, rsp      ; Set up new stack frame
-    
+    push rbp ; Save the base pointer(BP)
+    mov rbp, rsp ; Set BP to the current stack pointer
 
-    ; Print message
-    mov rax, 1 ; syscall: sys_write
-    mov rdi, 1
-    mov rsi, hello_msg ; message
-    mov rdx, hello_len ; length
-    syscall ; call kernel
+    mov rax, 1            ; sys_write
+    mov rdi, 1            ; stdout
+    mov rsi, hello_msg    ; pointer to string
+    mov rdx, hello_len    ; length
+    syscall
 
-    mov rsp, rbp      ; Restore stack pointer
-    pop rbp           ; Restore base pointer
+    mov rsp, rbp ; Restore the stack pointer
+    pop rbp ; Restore BP
 
-    ret ; return from function
+    ret
+
+clear_registers:
+    xor rax, rax
+    xor rbx, rbx
+    xor rcx, rcx
+    xor rdx, rdx
+    ret
