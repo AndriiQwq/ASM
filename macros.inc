@@ -2,6 +2,9 @@
 %ifndef MACROS_INC
 %define MACROS_INC
 
+; Using commands like "push" and "pop" for storing their context on the stack, and up it from the stack
+; Store and return registers, to avoid overwriting the registers and colisions
+
 %macro print_string 2
     mov rax, 1      ; sys_write(1)
     mov rdi, 1      ; 0 - stdin 1- stdout, 2- stderr
@@ -77,9 +80,36 @@
         print_string clear, len_clear
 %endmacro
 
-%macro print_number 0
-    
+; 
+%macro convert_int_to_str 2
+    ; Parametrs: buffer for output, number
+    push rax
+    push rcx
+    push rdx
+    push rsi
+    push rdi
 
+    mov rdi, %2
+    lea rsi, [%1+19]
+    mov byte [rsi], 0
+
+    convert_loop:
+        xor rdx, rdx
+        mov rax, rdi
+        mov rcx, 10
+        div rcx
+        add dl, '0'
+        dec rsi
+        mov [rsi], dl
+        mov rdi, rax
+        test rax, rax
+        jnz convert_loop
+
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rax
 %endmacro
 
 

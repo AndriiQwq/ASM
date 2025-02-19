@@ -10,10 +10,9 @@
 ; Program with discription: 
 
 ;Constants, defines
-STDIN equ 0
-STDOUT equ 1
 BufferSize64 equ 65536 ; constant 64kb
 O_RDONLY equ 0 ; Only reading file flag 
+NEW_LINE equ 0xa ; New line symbol
 
 section .data
     filename db "input.txt", 0 ; File for reading, or insted you can provide it as an argument
@@ -32,6 +31,9 @@ section .data
     r_argument db 'provided -r arg', 0xa ; -r argument
     len_r_argument equ $ - r_argument ; Length of the -r argument
 
+    p_argument db 'provided -p arg', 0xa ; -p argument
+    len_p_argument equ $ - p_argument ; Length of the -p argument
+
     not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
     len_not_provided_correct_arguments equ $ - not_provided_correct_arguments ; Message length
 
@@ -41,7 +43,7 @@ section .data
     comp_error_msg db 'Comp error occured', 0xa ;
     len_comp_error_msg equ $ - comp_error_msg
 
-    end_of_file_msg db 'End of riading file', 0xa
+    end_of_file_msg db 0xa,'End of riading file', 0xa
     len_end_of_file_msg equ $ - end_of_file_msg
 
     end_of_riading_buffer_msg db 'End of riading buffer', 0xa
@@ -52,13 +54,20 @@ section .data
 
     reversed_output_msg db 'Reversed output:', 0xa
     len_reversed_output_msg equ $ - reversed_output_msg
+
+    count_of_numbers_msg db 0xa, 'Count of numbers:', 0
+    len_count_of_numbers_msg equ $ - count_of_numbers_msg
     ; numbers db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ; Array of numbers
 
 
 section .bss ; segment of non-initialized data
-    ; num resb 5 ; Allocating 5 bytes for the num variable
     buffer resb BufferSize64 ; Reserve 65kb for buffer
     output_vector resb BufferSize64 ; Output
+
+    output_value_count_of_numbers resb 5
+
+    buffer_int64 resb 20  ; Buffer for the string (enough for a 64-bit integer)
+
 
 section .text
     global _start ; Start of the program
@@ -84,7 +93,7 @@ _start:
 
     ; Check first argument
     cmp byte [rdi], '-'
-    jne call_sxternal_function ; If not provided arguments, then go to single program execution
+    jne call_external_function ; If not provided arguments, then go to single program execution
 
     cmp byte [rdi + 1], 'h' ; Check if the argument is -h(Help for user)
     je isHArgument
@@ -93,14 +102,18 @@ _start:
     cmp byte [rdi + 1], 'r' ; Check if the argument is -r(Recursive output)
     je isRArgument
 
+    cmp byte [rdi + 1], 'p' ; Check if the argument is -p(strankovanie)
+    je ispArgument
+
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
 
 eror_exit_not_provided_correct_argument:
     error_exit not_provided_correct_arguments, len_not_provided_correct_arguments
 
 
-call_sxternal_function:
+call_external_function:
     call external_function  ; Call external function, which not provided correct argument
+    jmp normal_exit
 
 no_arguments:
     print_string not_provided_arguments, len_not_provided_arguments
@@ -158,8 +171,9 @@ end_of_file: ; End of reading file
     ;END OF READING FILE
 
     print_string output_vector, BufferSize64
-    print_string r14, 5
-
+    ; ; Convert the count of numbers to the string, and out it out 
+    call print_count_of_numbers
+    ret
     ; jmp normal_exit
 
 do_white_space:
@@ -355,6 +369,7 @@ found_dot: ; For example 1.2, we need to chendle sotuation when 6.. or 6.6.6 ot 
 
     ; if not found the num after the dot, do white space
     call do_white_space
+    inc r14; Count of numbers, we read the number and read dot, but after dot was not number
 
     jmp count_numbers_loop ; so , this is not a number, go to finding the next number
 
@@ -407,6 +422,14 @@ isHArgument:
 
     normal_exit            ; exit the program
 
+ispArgument: ; Paging 
+    print_string p_argument, len_p_argument
+    ; add J and K pres handlers 
+
+
+
+    normal_exit            ; exit the program
+
 isRArgument:
     print_string r_argument, len_r_argument
 
@@ -431,11 +454,20 @@ isRArgument:
     ; Do outoput reverse
     print_string reversed_output_msg, len_reversed_output_msg
 
-
+    ; Out the reversed output
     reverse_string output_vector, BufferSize64, buffer
     print_string buffer, BufferSize64
 
-
+    call print_count_of_numbers
+    
     close_file r15 ; Close the file 
-
     normal_exit             ; exit the program
+
+print_count_of_numbers:
+    ; Convert the count of numbers to the string, and out it out 
+    print_string count_of_numbers_msg, len_count_of_numbers_msg
+    
+    convert_int_to_str buffer_int64, r14
+    print_string buffer_int64, 20
+
+    ret

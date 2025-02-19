@@ -19,10 +19,3 @@ external_function:
     pop rbp ; Restore BP
 
     ret
-
-clear_registers:
-    xor rax, rax
-    xor rbx, rbx
-    xor rcx, rcx
-    xor rdx, rdx
-    ret
