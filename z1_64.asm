@@ -20,6 +20,7 @@ section .data
                                ; 0 in the end use for determine the end of the string
 
     flag db 0 ; Flag for controll a irrational values with dot
+    flag_minus db 0 ; Flag for controll a values with minus
 
     ;0xa is 10('/n'), 0x9 is '/t'
     ;Operator $ read the current position of the diclaration and all next diclarations, 
@@ -32,14 +33,25 @@ section .data
     len_r_argument equ $ - r_argument ; Length of the -r argument
 
     not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
-    len_not_provided_correct_arguments equ $ - not_provided_correct_arguments ; Message length 
+    len_not_provided_correct_arguments equ $ - not_provided_correct_arguments ; Message length
+
+    not_provided_arguments db 'Not provided arguments', 0xa
+    len_not_provided_arguments equ $ - not_provided_arguments
 
     comp_error_msg db 'Comp error occured', 0xa ;
     len_comp_error_msg equ $ - comp_error_msg
 
+    end_of_file_msg db 'End of riading file', 0xa
+    len_end_of_file_msg equ $ - end_of_file_msg
+
+    end_of_riading_buffer_msg db 'End of riading buffer', 0xa
+    len_end_of_riading_buffer_msg equ $ - end_of_riading_buffer_msg
+
     help_msg dq 'Help:  informácie o programe a jeho použití: ', 0xa,'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter', 0xa,  'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa
     len_help_msg equ $ - help_msg
 
+    reversed_output_msg db 'Reversed output:', 0xa
+    len_reversed_output_msg equ $ - reversed_output_msg
     ; numbers db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ; Array of numbers
 
 
@@ -68,6 +80,7 @@ _start:
     pop rdi    ; argv[1] is second argument(for example: -h); pop rsi; argv[2] is third argument(for example: -k)
 
     ; Потом нужно будет добавить проверку, если аргументов предоставляется 2 сразу, без учета названия файла
+    ; И считиванеи имени ффайла 
 
     ; Check first argument
     cmp byte [rdi], '-'
@@ -79,15 +92,18 @@ _start:
     ;CONTROL ANOTHER ARGUMENTS(-r)
     cmp byte [rdi + 1], 'r' ; Check if the argument is -r(Recursive output)
     je isRArgument
-    jne no_arguments ; NOT PROVIDED CORRECT ARGUMENTS
 
-    ;normal_exit
+    jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
+
+eror_exit_not_provided_correct_argument:
+    error_exit not_provided_correct_arguments, len_not_provided_correct_arguments
+
 
 call_sxternal_function:
     call external_function  ; Call external function, which not provided correct argument
 
 no_arguments:
-    print_string not_provided_correct_arguments, len_not_provided_correct_arguments
+    print_string not_provided_arguments, len_not_provided_arguments
 
     open_file filename, O_RDONLY, 0644
     ; Syscall return the result of the operation in the rax register, so we need check it for errors
@@ -103,7 +119,17 @@ no_arguments:
 
     ; print_string buffer, BufferSize64
 
-    jmp read_loop
+    ;DO OPERATION WITH BUFFER, we use tow arays for readed input and output numbers
+    mov r14, 0 ; Count of numbers
+    mov r13, 0 ; iterator
+    ; output_vector ; Is output vector for numbers
+    mov r12, 0 ; Iterator for output vector
+
+    call read_loop
+
+    ; NOW WE HAVE READED THE NUMBERS FROM FILE AND COUNTED THEM
+
+    ;NEED ADD Check if -r argument is presenteds
 
 
     close_file r15 ; Close the file 
@@ -116,46 +142,49 @@ read_loop:
     read_string_from_the_file r15, buffer, BufferSize64
     cmp rax, 0
     jl comp_error ; Error during read
-    ;je end_of_file ; End of file
+    je end_of_file    ; EOF reached
 
-    ;DO OPERATION WITH BUFFER, we use tow arays for readed input and output numbers
-    mov r14, 0 ; Count of numbers
-    mov r13, 0 ; iterator
-    ; output_vector ; Is output vector for numbers
-    mov r12, 0 ; Iterator for output vector
+    ; jmp count_numbers_loop    ; Loop for counting numbers
+    call count_numbers_loop
 
-    ; Loop for counting numbers
-    jmp count_numbers_loop
-    ;IT NEED Return !!!, call 
+    jmp read_loop
 
-    ; ; end_read:
-    ; print_string r14, 5
-    ; jmp read_loop
+end_of_riading_to_buffer: ; End of reading one part of the file to buffer 
+    print_string end_of_riading_buffer_msg, len_end_of_riading_buffer_msg
 
-end_of_file:
+end_of_file: ; End of reading file
+    print_string end_of_file_msg, len_end_of_file_msg
+
+    ;END OF READING FILE
+
     print_string output_vector, BufferSize64
     print_string r14, 5
 
-    jmp normal_exit
+    ; jmp normal_exit
 
 do_white_space:
     ; Write space
+    
     mov r9b, 0x20 ; Space
     mov byte [output_vector + r12], r9b 
     inc r12 ; Increment the ouput vector iterator
-
+    
     ret
 
 count_numbers_loop:
     ; Set dot flag to 0, this mean that dot was't found
 
     mov byte [flag], 0
+    mov byte [flag_minus], 0
 
     ; Check end of the buffer
     cmp r13, BufferSize64
-    jge end_of_file ;ret 
+    jge end_of_riading_to_buffer ;ret 
 
     mov r8b, byte [buffer + r13]
+
+    cmp r8b, '-'
+    je found_minus
 
     cmp r8b, '0'
     je found_number
@@ -189,6 +218,47 @@ count_numbers_loop:
 
     inc r13
     jmp count_numbers_loop
+
+found_minus: ; '-' alwase at begin of the string
+    mov byte [flag_minus], 1
+    inc r13 ;input iterator
+
+    ;check if next symbol is number
+    mov r10b, byte [buffer + r13]
+
+    cmp r10b, '0'
+    je up_minus_and_digit
+
+    cmp r10b, '1'
+    je up_minus_and_digit
+
+    cmp r10b, '2'
+    je up_minus_and_digit
+
+    cmp r10b, '3'
+    je up_minus_and_digit
+
+    cmp r10b, '4'
+    je up_minus_and_digit
+
+    cmp r10b, '5'
+    je up_minus_and_digit
+
+    cmp r10b, '6'
+    je up_minus_and_digit
+
+    cmp r10b, '7'
+    je up_minus_and_digit
+
+    cmp r10b, '8'
+    je up_minus_and_digit
+
+    cmp r10b, '9'
+    je up_minus_and_digit
+
+    jmp count_numbers_loop ; We set iterator to the next symbol, 
+    ;and we can return to the main loop of fainding the numbers
+
 
 found_number:
     ; Write sign to the output vector
@@ -283,7 +353,10 @@ found_dot: ; For example 1.2, we need to chendle sotuation when 6.. or 6.6.6 ot 
     ; If not found the number, this mean thhat it found the another symbol that 0-9
     ; Continue our finding the number with a new iteration
 
-    jmp count_numbers_loop
+    ; if not found the num after the dot, do white space
+    call do_white_space
+
+    jmp count_numbers_loop ; so , this is not a number, go to finding the next number
 
 twice_dot_was_found:
     inc r14        ; Increment number count
@@ -318,6 +391,12 @@ up_dot_and_digit: ; Provide to output vector the dot and number
 
     jmp found_number
 
+up_minus_and_digit:
+    mov byte [output_vector + r12], 0x2D ; minus has kod 96
+    inc r12 ; Increment the ouput vector iterator
+
+    jmp found_number
+
 comp_error:
     error_exit comp_error_msg, len_comp_error_msg
 
@@ -330,5 +409,33 @@ isHArgument:
 
 isRArgument:
     print_string r_argument, len_r_argument
+
+    
+    open_file filename, O_RDONLY, 0644; Syscall return the result of the operation in the rax register, so we need check it for errors
+    cmp rax, 0
+    jl comp_error ; jamp less than 0, syscall open return error code then is less than 0
+    mov r15, rax; Save file descriptor, for reading from the file, file need the file descriptor
+
+    mov r14, 0 ; Count of numbers
+    mov r13, 0 ; iterator
+    mov r12, 0 ; Iterator for output vector
+
+    call read_loop
+
+    ; ; NOW WE HAVE READED THE NUMBERS FROM FILE AND COUNTED THEM
+    ; print_string output_vector, BufferSize64
+    ; print_string r14, 5
+    ; normal_exit     ;NEED ADD Check if -r argument is presenteds
+
+    clear_screen; Clear the screen
+    ; Do outoput reverse
+    print_string reversed_output_msg, len_reversed_output_msg
+
+
+    reverse_string output_vector, BufferSize64, buffer
+    print_string buffer, BufferSize64
+
+
+    close_file r15 ; Close the file 
 
     normal_exit             ; exit the program
