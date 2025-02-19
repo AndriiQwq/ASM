@@ -56,8 +56,10 @@
     syscall
 %endmacro
 
+%macro print_number 0:
+    
 
-
+%endmacro
 
 
 %endif
