@@ -10,20 +10,24 @@
 ; Program with discription: 
 
 ;Constants, defines
-BufferSize64 equ 65536 ; constant 64kb
+BufferSize64 equ 5000  ; constant 64kb
 O_RDONLY equ 0 ; Only reading file flag 
-NEW_LINE equ 0xa ; New line symbol
-
+FILE_NAME_SIZE equ 128 ; Filename size
 section .data
-    filename db "input.txt", 0 ; File for reading, or insted you can provide it as an argument
-                               ; 0 in the end use for determine the end of the string
+    ; filename db "input.txt", 0 ; File for reading, or insted you can provide it as an argument
+    ;                            ; 0 in the end use for determine the end of the string
 
     flag db 0 ; Flag for controll a irrational values with dot
     flag_minus db 0 ; Flag for controll a values with minus
 
+    r_argument_is_presented db 0 ; Flag for reverse output
+
     ;0xa is 10('/n'), 0x9 is '/t'
     ;Operator $ read the current position of the diclaration and all next diclarations, 
     ;due to we declare it berfor the message
+
+    clear db 27,'[2J',27,'[H'
+    len_clear equ $ - clear
 
     h_argument db 'provided -h arg', 0xa  ; -h argument
     len_h_argument equ $ - h_argument ; Length of the -h argument
@@ -31,7 +35,7 @@ section .data
     r_argument db 'provided -r arg', 0xa ; -r argument
     len_r_argument equ $ - r_argument ; Length of the -r argument
 
-    p_argument db 'provided -p arg', 0xa ; -p argument
+    p_argument db 'provided -p arg, press J or K', 0xa ; -p argument
     len_p_argument equ $ - p_argument ; Length of the -p argument
 
     not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
@@ -46,7 +50,7 @@ section .data
     end_of_file_msg db 0xa,'End of riading file', 0xa
     len_end_of_file_msg equ $ - end_of_file_msg
 
-    end_of_riading_buffer_msg db 'End of riading buffer', 0xa
+    end_of_riading_buffer_msg db 0xa, 'End of riading buffer', 0xa
     len_end_of_riading_buffer_msg equ $ - end_of_riading_buffer_msg
 
     help_msg dq 'Help:  informácie o programe a jeho použití: ', 0xa,'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter', 0xa,  'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa
@@ -57,6 +61,9 @@ section .data
 
     count_of_numbers_msg db 0xa, 'Count of numbers:', 0
     len_count_of_numbers_msg equ $ - count_of_numbers_msg
+
+    count_of_files_msg db 0xa, 'Count of files:', 0xa
+    len_count_of_files_msg equ $ - count_of_files_msg
     ; numbers db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ; Array of numbers
 
 
@@ -64,10 +71,19 @@ section .bss ; segment of non-initialized data
     buffer resb BufferSize64 ; Reserve 65kb for buffer
     output_vector resb BufferSize64 ; Output
 
-    output_value_count_of_numbers resb 5
-
     buffer_int64 resb 20  ; Buffer for the string (enough for a 64-bit integer)
 
+    files resb FILE_NAME_SIZE*8 ; Max 8 files with 128 symbols in the name(128B per filename)
+    count_of_files resb 8; Count of files
+    filename resb FILE_NAME_SIZE ; File name
+    file_iterator resb FILE_NAME_SIZE ; File iterator, 8 bytes for it 
+
+    pages resb BufferSize64*24 ; Max 24 pages with 512 symbols in the name(512B per page)
+    current_page resb 0; Current page
+
+    file_offset resq 1  
+
+    current_file resq FILE_NAME_SIZE; has 8 bytes
 
 section .text
     global _start ; Start of the program
@@ -85,11 +101,24 @@ _start:
     ; Else get the arguments
     pop rbx    ; argv[0] is first argument(file name), skip it
 
-    
-    pop rdi    ; argv[1] is second argument(for example: -h); pop rsi; argv[2] is third argument(for example: -k)
 
-    ; Потом нужно будет добавить проверку, если аргументов предоставляется 2 сразу, без учета названия файла
-    ; И считиванеи имени ффайла 
+
+
+
+    ; CHECK ARGUMENTS 
+    jmp check_next_argument
+
+
+
+
+
+
+
+    
+    pop rdi    ; argv[1] is second argument(for example: -h);
+    
+    ; CHECK FILE NAMES, THEY HAVE FLAG "-f" and body "filename.txt"
+    ; FIRST CHECK IF IT IS A DOCKUMENTATION FLAG
 
     ; Check first argument
     cmp byte [rdi], '-'
@@ -97,6 +126,9 @@ _start:
 
     cmp byte [rdi + 1], 'h' ; Check if the argument is -h(Help for user)
     je isHArgument
+
+    cmp byte [rdi + 1], 'f' ; Check if the argument is -r(Recursive output)
+    je read_file_name
 
     ;CONTROL ANOTHER ARGUMENTS(-r)
     cmp byte [rdi + 1], 'r' ; Check if the argument is -r(Recursive output)
@@ -107,9 +139,140 @@ _start:
 
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
 
+read_file_name:;Calculate offset for storing new file name
+    ; push r11
+    pop rdi; arg, file name 
+    mov r11, 0; offset for current name 
+    call write_file_name
+    
+    
+    mov edx, [file_iterator]
+    add edx, FILE_NAME_SIZE
+    mov [file_iterator], edx
+    inc byte [count_of_files]
+
+    
+    jmp check_next_argument ;Check next argument
+
+write_file_name:
+
+    cmp byte [rdi + r11], 0
+    je return_from_write
+    cmp byte [rdi + r11], ' '
+    je return_from_write
+    jmp write_char
+
+return_from_write:
+    ; inc byte [count_of_files]    ;Increment count of files
+
+    ; mov edx, [file_iterator]
+    ; add edx, FILE_NAME_SIZE; to increase offset 
+    ; mov [file_iterator], edx
+
+    ret
+
+write_char:
+    mov rdx, [file_iterator] ; todo offset, and work on current file space  
+    add rdx, r11       ; file address is files + (offset + r11) ;rdx now is offset in vector + current file offset
+    mov al, [rdi + r11]  ; rdi is filname address
+    mov byte [files + rdx], al ;al current symbol
+    inc r11
+    jmp write_file_name
+
+check_next_argument:
+    pop rdi
+    cmp rdi, 0
+    je end_of_args ; Not arguments any more
+            
+    cmp byte [rdi], '-'
+    jne call_external_function ;
+
+    cmp byte [rdi + 1], 'h'
+    je isHArgument
+
+    cmp byte [rdi + 1], 'f'
+    je read_file_name
+
+    cmp byte [rdi + 1], 'r'
+    je set_r_flag
+
+    cmp byte [rdi + 1], 'p'
+    je ispArgument
+
+    jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
+
+set_r_flag:
+    mov byte [r_argument_is_presented], 1
+    jmp check_next_argument
+
+end_of_args:; MAIN BODI AFTER READING THE ARGUMENTS
+    ; Iterate over the files
+    movzx rcx, byte [count_of_files];count of files
+
+    convert_int_to_str buffer_int64, [count_of_files]
+    mov rcx, buffer_int64
+
+
+    xor rbx, rbx; offset in the filenames vector
+
+    mov qword [current_file], 0
+    jmp iterate_files
+
+iterate_files:
+    ; movzx rcx, byte [count_of_files]
+    cmp rcx, '0' ;test if count of files for processing is 0
+    jz success_read_files
+    
+    ; convert_int_to_str buffer_int64, [file_iterator]
+    ; print_string buffer_int64, 20
+
+    mov rbx, [current_file]
+    add rbx, FILE_NAME_SIZE
+
+    ; Debag Info, start and end of slize
+    ; convert_int_to_str buffer_int64, [current_file]
+    ; print_string buffer_int64, 20
+
+    ; convert_int_to_str buffer_int64, rbx
+    ; print_string buffer_int64, 20
+
+    retrive_substring files, filename, [current_file], rbx
+    ; print_string filename, FILE_NAME_SIZE 
+
+    ; COUNT OF FILES 
+    print_string count_of_files_msg, len_count_of_files_msg
+    convert_int_to_str buffer_int64, [count_of_files]
+    print_string buffer_int64, 20
+
+    mov [current_file], rbx
+    dec rcx
+
+    call process_file
+
+
+    jmp iterate_files
+
+; read_current_filename:
+;     mov 
+
+process_file:
+    open_file filename, O_RDONLY, 0644; Syscall return the result of the operation in the rax register, so we need check it for errors
+
+    cmp rax, 0
+    jl comp_error ; jamp less than 0, syscall open return error code then is less than 0
+    mov r15, rax; Save file descriptor, for reading from the file, file need the file descriptor
+
+    mov r14, 0 ; Count of numbers
+    mov r13, 0 ; iterator
+    mov r12, 0 ; Iterator for output vector
+
+    call read_loop
+
+success_read_files:
+    normal_exit
+
 eror_exit_not_provided_correct_argument:
     error_exit not_provided_correct_arguments, len_not_provided_correct_arguments
-
 
 call_external_function:
     call external_function  ; Call external function, which not provided correct argument
@@ -126,12 +289,6 @@ no_arguments:
     mov r15, rax; Save file descriptor, for reading from the file, file need the file descriptor
     ; file descriptor is a unsigned value for indication the open file in the system
 
-    ; read_string_from_the_file r15, buffer, BufferSize64
-    ; cmp rax, 0
-    ; jl comp_error ; Check result of operation
-
-    ; print_string buffer, BufferSize64
-
     ;DO OPERATION WITH BUFFER, we use tow arays for readed input and output numbers
     mov r14, 0 ; Count of numbers
     mov r13, 0 ; iterator
@@ -140,25 +297,38 @@ no_arguments:
 
     call read_loop
 
-    ; NOW WE HAVE READED THE NUMBERS FROM FILE AND COUNTED THEM
-
-    ;NEED ADD Check if -r argument is presenteds
-
-
     close_file r15 ; Close the file 
-
     normal_exit
 
     ret
 
 read_loop:
+    ; ; Set offset in the file 
+    ; mov eax, [current_page]
+    ; imul eax, BufferSize64
+    ; mov [file_offset], rax
+
+    ; set_file_offset r15, file_offset
+
     read_string_from_the_file r15, buffer, BufferSize64
+
+    ; print_string buffer, BufferSize64
+    
     cmp rax, 0
     jl comp_error ; Error during read
     je end_of_file    ; EOF reached
 
     ; jmp count_numbers_loop    ; Loop for counting numbers
-    call count_numbers_loop
+    call count_numbers_loop ; OPERATION WITH BUFFER, WRITING PAGE
+
+    ; WRITE PAGE TO THE MEMORY from output_vector
+
+    ; mov rsi, output_vector
+    ; lea rdi, [pages]
+    
+    ; call copy_vector_to_page
+
+    ; call go_to_next_page ;GO TO NEXT PAGE
 
     jmp read_loop
 
@@ -169,12 +339,43 @@ end_of_file: ; End of reading file
     print_string end_of_file_msg, len_end_of_file_msg
 
     ;END OF READING FILE
-
-    print_string output_vector, BufferSize64
     ; ; Convert the count of numbers to the string, and out it out 
+    cmp byte [r_argument_is_presented], 1
+    je process_reversed_output
+
     call print_count_of_numbers
-    ret
-    ; jmp normal_exit
+    print_string output_vector, BufferSize64
+
+    call clear_output_buffer
+
+    jmp iterate_files
+
+process_reversed_output:
+    clear_screen; Clear the screen
+    ; Do outoput reverse
+    print_string reversed_output_msg, len_reversed_output_msg
+
+    ; Out the reversed output
+    reverse_string output_vector, BufferSize64, buffer
+    print_string buffer, BufferSize64
+
+    call print_count_of_numbers
+
+    jmp iterate_files
+
+
+clear_output_buffer:
+    cmp r12, BufferSize64
+    jge end_of_clear_output_buffer
+    mov byte [output_vector + r12], 0x20
+    inc r12
+    jmp clear_output_buffer
+
+end_of_clear_output_buffer:
+    pop rdi
+    pop rcx
+    jmp iterate_files  
+    
 
 do_white_space:
     ; Write space
@@ -426,6 +627,7 @@ ispArgument: ; Paging
     print_string p_argument, len_p_argument
     ; add J and K pres handlers 
 
+    ; add iterator for pages
 
 
     normal_exit            ; exit the program
@@ -460,8 +662,8 @@ isRArgument:
 
     call print_count_of_numbers
     
-    close_file r15 ; Close the file 
-    normal_exit             ; exit the program
+    ; close_file r15 ; Close the file 
+    ret             ; exit the program
 
 print_count_of_numbers:
     ; Convert the count of numbers to the string, and out it out 
@@ -469,5 +671,4 @@ print_count_of_numbers:
     
     convert_int_to_str buffer_int64, r14
     print_string buffer_int64, 20
-
     ret

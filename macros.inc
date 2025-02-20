@@ -6,11 +6,21 @@
 ; Store and return registers, to avoid overwriting the registers and colisions
 
 %macro print_string 2
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
     mov rax, 1      ; sys_write(1)
     mov rdi, 1      ; 0 - stdin 1- stdout, 2- stderr
     mov rsi, %1     ; string address
     mov rdx, %2     ; string length
     syscall
+
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
 %endmacro
 
 %macro reverse_string 3
@@ -19,11 +29,11 @@
     mov rdi, %3;dest add
     mov rdx, 0 ; counter
 
-    reverse:
+    %%reverse:
         mov al, [rsi + rcx - 1] ; Copy the least sign to al register
         mov [rdi + rdx], al ; Copy the last sign in al to the dest regoster 
         inc rdx 
-        loop reverse
+        loop %%reverse
 %endmacro
 
 %macro exit 1 ; stopping the program
@@ -66,6 +76,24 @@
     syscall
 %endmacro
 
+%macro set_file_offset 2 ;Set offset in the file 
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
+    mov rax, 8; sys_lseek
+    mov rdi, %1 ; file descriptor
+    mov rsi, qword [%2] ; offset
+    xor rdx, rdx; SEEK_SET = 0
+    syscall
+
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+%endmacro
+
 %macro close_file 1; close(3)
     mov rax, 3
     mov rdi, %1
@@ -73,11 +101,50 @@
 %endmacro
 
 %macro clear_screen 0
-    section .data
-        clear db 27,'[2J',27,'[H'
-        len_clear equ $ - clear
-    section .text
-        print_string clear, len_clear
+    print_string clear, len_clear
+%endmacro
+
+%macro retrive_substring 4
+    ; Parameters
+    push r8 ; iterator 
+    push rdi ; Output buffer it
+    push rsi ; Input buffer it
+    push rcx ; From
+    push rdx ; To
+
+    xor r8, r8  ; iterator for output buffer
+    mov rsi, %1 ; Input buffer it
+    mov rdi, %2 ; Output buffer it
+    mov rcx, %3 ; From
+    mov rdx, %4 ; To
+
+    %%copy_loop:
+        cmp rcx, rdx ;If copy all nedeed symbols, then break
+        jge %%break_loop 
+
+
+
+        mov al, [rsi + rcx]
+
+        ; cmp al, 0
+        ; je %%break_loop
+        ; cmp al, 10
+        ; je %%break_loop
+        ; cmp al, ' '
+        ; je %%break_loop
+
+        mov [rdi + r8], al
+        inc rcx
+        inc r8
+        jmp %%copy_loop
+
+    %%break_loop:
+    pop rdx
+    pop rcx
+    pop rsi
+    pop rdi
+    pop r8
+  
 %endmacro
 
 ; 
@@ -93,7 +160,7 @@
     lea rsi, [%1+19]
     mov byte [rsi], 0
 
-    convert_loop:
+    %%convert_loop:
         xor rdx, rdx
         mov rax, rdi
         mov rcx, 10
@@ -103,7 +170,7 @@
         mov [rsi], dl
         mov rdi, rax
         test rax, rax
-        jnz convert_loop
+        jnz %%convert_loop
 
     pop rdi
     pop rsi
