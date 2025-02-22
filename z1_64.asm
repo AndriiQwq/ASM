@@ -1,28 +1,34 @@
 ; Zadanie č. [7] 
 ; Autor - Andrii Dokaniev
 ; Text konkrétneho riešeného zadania:
-    ;7. Vypísať zo vstupu všetky čísla (aj viacciferné) a ich počet. 
+    ; 7. Vypísať zo vstupu všetky čísla (aj viacciferné) a ich počet. 
     ; Vypracovane bonusové úlohy:
+        ; 1. Correct handling files above 64kb
+        ; 2. Support for reading files from arguments, and support by default 8 files
+        ; 3. Support for reverse output (-r)
+        ; 4. Support for paging output (-p)
+        ; 5. Quality of the documentation
+        ; 6. External function for function of the program
+        ; 7. Using function for string instructions (MOVS, CMPS, STOS, ...)
 
 ; Termín odovzdávania: 3/23/2025
 ; 2 Ročník, 2024/2025, letný semester, FIIT
 
 ; Program with discription: 
+; For help use -h argument
 
 ;Constants, defines
 BufferSize64 equ 65536 ; constant 64kb
 O_RDONLY equ 0 ; Only reading file flag 
 FILE_NAME_SIZE equ 128 ; Filename size
 section .data
-    ; filename db "input.txt", 0 ; File for reading, or insted you can provide it as an argument
-    ;                            ; 0 in the end use for determine the end of the string
-
     flag db 0 ; Flag for controll a irrational values with dot
     flag_minus db 0 ; Flag for controll a values with minus
 
     r_argument_is_presented db 0 ; Flag for reverse output
     p_argument_is_presented db 0 ; Flag for paging output
 
+    ;0 determine the end of the string
     ;0xa is 10('/n'), 0x9 is '/t'
     ;Operator $ read the current position of the diclaration and all next diclarations, 
     ;due to we declare it berfor the message
@@ -33,39 +39,48 @@ section .data
     succsfull_exit db 'Succesfull exit, exit code: 0', 0xa
     len_succsfull_exit equ $ - succsfull_exit
 
-    h_argument db 'provided -h arg', 0xa  ; -h argument
-    len_h_argument equ $ - h_argument ; Length of the -h argument
-
-    r_argument db 'provided -r arg', 0xa ; -r argument
+    r_argument db 'provided -r arg.', 0xa ; -r argument
     len_r_argument equ $ - r_argument ; Length of the -r argument
 
-    p_argument db 'provided -p arg, press J or K', 0 ; -p argument
+    p_argument db 'provided -p arg, press J or K.', 0 ; -p argument
     len_p_argument equ $ - p_argument ; Length of the -p argument
 
-    not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
+    not_provided_correct_arguments db 0xa, 'Not provided correct arguments.', 0xa ; Message
     len_not_provided_correct_arguments equ $ - not_provided_correct_arguments ; Message length
 
-    not_provided_arguments db 'Not provided arguments', 0xa
+    not_provided_arguments db 'Not provided arguments.', 0xa
     len_not_provided_arguments equ $ - not_provided_arguments
 
-    comp_error_msg db 'Error occured', 0xa ;
+    see_documentation_help_msg db 'See documentation for help(-h)', 0xa
+    len_see_documentation_help_msg equ $ - see_documentation_help_msg
+
+    comp_error_msg db 'Error occured.', 0xa, 'Exit code: 1', 0xa
     len_comp_error_msg equ $ - comp_error_msg
 
     filename_msg db 0xa, 'Filename:'
     len_print_filename_msg equ $ - filename_msg
 
-    end_of_file_msg db 0xa,'End of reading file', 0xa
+    end_of_file_msg db 0xa,'End of reading file.', 0xa
     len_end_of_file_msg equ $ - end_of_file_msg
 
     screen_separator db 0xa, '-----------------------------------', 0xa
     len_screen_separator equ $ - screen_separator
 
-    end_of_reading_buffer_msg db 0xa, 'End of reading buffer', 0
+    end_of_reading_buffer_msg db 0xa, 'End of reading buffer.', 0
     len_end_of_reading_buffer_msg equ $ - end_of_reading_buffer_msg
 
-    help_msg dq 'Help: information about program and his using:', 0xa, 'This program suport file above 64kb, and can read the files from arguments', 0xa , 'By default program suport 8 files from arguments', 0xa, 'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter', 0xa,  'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa
-    len_help_msg equ $ - help_msg
+    help_msg0 db 'Help:', 0x0
+    len_help_msg0 equ $ - help_msg0 
 
+    help_msg1 dq 'Information about program and his using:', 0xa, 0x9, 'This program suport file above 64kb, and can read the files from arguments', 0xa, 0x9,'By default program suport 8 files from arguments', 0xa
+    len_help_msg1 equ $ - help_msg1
+
+    help_msg2 dq 'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter. ', 0xa, 0x9,'The prgramm read the files from the arguments, and the you can see it by pressing Enter button.', 0xa, 0x9,'If you using the -p argument you, after this you can slide the pages using "j" and "k" buttons, and presing Enter button.', 0xa
+    len_help_msg2 equ $ - help_msg2
+
+    help_msg3 dq 'Exemple:', 0xa, 0x9, 'program_name -f file1.txt -f file2.txt -r -p', 0xa, 'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa, 0x9, '-p: paged output', 0xa,  0x9, '-f: file name', 0xa
+    len_help_msg3 equ $ - help_msg3
+    
     reversed_output_msg db 'Reversed output:', 0xa
     len_reversed_output_msg equ $ - reversed_output_msg
 
@@ -197,7 +212,6 @@ set_r_flag:
 set_p_flag:
     mov byte [p_argument_is_presented], 1
 
-    clear_screen; Clear the screen
     print_string p_argument, len_p_argument
     jmp check_next_argument
 
@@ -268,15 +282,15 @@ success_read_files:
     ; All files readed message
     print_string all_files_readed_msg, len_all_files_readed_msg
 
-    ; call clean_buffers
-
     cmp byte [p_argument_is_presented], 1
     je pre_slide_pages
 
     normal_exit
 
 eror_exit_not_provided_correct_argument:
-    error_exit not_provided_correct_arguments, len_not_provided_correct_arguments
+    print_string not_provided_correct_arguments, len_not_provided_correct_arguments
+    print_string see_documentation_help_msg, len_see_documentation_help_msg
+    error_exit comp_error_msg, len_comp_error_msg
 
 call_external_function:
     call external_function  ; Call external function, which not provided correct argument
@@ -284,9 +298,8 @@ call_external_function:
 
 no_arguments:
     print_string not_provided_arguments, len_not_provided_arguments
-
+    print_string see_documentation_help_msg, len_see_documentation_help_msg
     jmp comp_error
-    normal_exit
 
 read_loop:
     read_string_from_the_file r15, buffer, BufferSize64
@@ -313,16 +326,12 @@ end_of_file: ;END OF READING FILE
     je process_reversed_output
 
     print_string single_output_msg, len_single_output_msg
-    
+     ; OUTPUT THE RESULT
     print_string output_vector, BufferSize64
     call print_count_of_numbers
 
     cmp byte [p_argument_is_presented], 1
     je process_paged_output
-
-    ; OUTPUT THE RESULT
-    ; print_string output_vector, BufferSize64
-    ; call print_count_of_numbers
 
     ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
     call clean_buffers
@@ -335,15 +344,11 @@ process_reversed_output:
 
     ; Out the reversed output
     reverse_string output_vector, BufferSize64, buffer
-    print_string buffer, BufferSize64
-    call print_count_of_numbers 
+    print_string buffer, BufferSize64 ; OUTPUT THE RESULT
+    call print_count_of_numbers ; Out the number of the finded numbers
     
     cmp byte [p_argument_is_presented], 1
     je process_reversed_paged_output
-
-    ; OUTPUT THE RESULT
-    ; print_string buffer, BufferSize64
-    ; call print_count_of_numbers ; Out the number of the finded numbers
 
     ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
     call clean_buffers
@@ -362,10 +367,6 @@ process_paged_output:
 
     add qword [current_page_offset], BufferSize64
 
-    ; convert_int_to_str buffer_int64, [current_page_offset] ; For print current page 
-    ; print_string buffer_int64, 20
-    ; print_string pages, BufferSize64*8
-
     call clean_buffers
     jmp iterate_files
 
@@ -374,10 +375,6 @@ process_reversed_paged_output:
     copy_to buffer, pages, BufferSize64, [current_page_offset]
 
     add qword [current_page_offset], BufferSize64
-
-    ; convert_int_to_str buffer_int64, [current_page_offset]
-    ; print_string buffer_int64, 20
-    ; print_string pages, BufferSize64*8
 
     call clean_buffers
     jmp iterate_files
@@ -390,7 +387,7 @@ pre_slide_pages:
 slide_pages:
     call clean_buffers
     read_key_from_keyboard input_key ; Read key from keyboard
-    print_string p_argument, len_p_argument
+    
     cmp byte [input_key], 0x6A   ; j
     je next_page
 
@@ -402,7 +399,7 @@ slide_pages:
 next_page:
     ; eror handling
     cmp qword [current_page], BufferSize64*8 - BufferSize64
-    je slide_pages
+    je clean_and_return_to_slide_pages
 
     add qword [current_page], BufferSize64
     clear_screen
@@ -413,7 +410,7 @@ next_page:
 previous_page:
     ; eror handling
     cmp qword [current_page], 0
-    je slide_pages
+    je clean_and_return_to_slide_pages
 
     sub qword [current_page], BufferSize64
     clear_screen
@@ -421,6 +418,16 @@ previous_page:
 
     jmp slide_pages
 
+clean_and_return_to_slide_pages:
+    clear_screen
+
+    call separate_output
+
+    convert_int_to_str buffer_int64, [current_page]
+    print_string buffer_int64, 20
+
+    call separate_output
+    jmp slide_pages
 
 show_page:
     push r12
@@ -429,7 +436,7 @@ show_page:
     add r12, BufferSize64
     retrive_substring pages, page_to_display, [current_page], r12
     
-    call clear_screen
+    clear_screen
 
     call separate_output
 
@@ -675,10 +682,14 @@ comp_error:
 
 isHArgument:
     ; Provided Instructions
-    print_string h_argument, len_h_argument
-    print_string help_msg, len_help_msg
+    clear_screen
+    print_string help_msg0, len_help_msg0
+    call separate_output
+    print_string help_msg1, len_help_msg1
+    print_string help_msg2, len_help_msg2
+    print_string help_msg3, len_help_msg3
 
-    normal_exit            ; exit the program
+    normal_exit ; exit the program
 
 print_count_of_numbers:
     ; Convert the count of numbers to the string, and out it out 

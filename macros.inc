@@ -134,13 +134,6 @@
 
         mov al, [rsi + rcx]
 
-        ; cmp al, 0
-        ; je %%break_loop
-        ; cmp al, 10
-        ; je %%break_loop
-        ; cmp al, ' '
-        ; je %%break_loop
-
         mov [rdi + r8], al
         inc rcx
         inc r8
@@ -187,57 +180,70 @@
     pop rax
 %endmacro
 
-%macro clear_buffer 2 ; Buffer and his maximal size
-    push r12
-    xor r12, r12
+%macro clear_buffer 2
+    ; Parameters:
+    ; %1: Buffer
+    ; %2: Size to clear
 
-    %%clear_buffer: 
-    cmp r12, %2
-    jge %%end_of_clear_buffer
-    mov byte [%1 + r12], 0
-    inc r12
-    jmp %%clear_buffer
+    ; Use stosb for write from al register to rdi(64b) or edi(32b) or di(16b)
+    ; It work only with this registers, rdi contain
+    ; Provide math operation on rdi register, as inc or dec
+    ; Using DF (Direction Flag)
+    ; CLD (Clear Direction Flag) - rdi will be incremented
+    ; STD (Set Direction Flag) - rdi will be decremented
+    ; Rep with stosb using for repeat this operation
+    ; Rep using rcx register and decrement if
 
-    %%end_of_clear_buffer:
-    pop r12
+    ; Stosw, Stosd, Stosq - for 2, 4, 8 bytes
+    ; Stosb - for 1 byte
+
+    push rdi
+    push rcx
+
+    mov rdi, %1
+    mov rcx, %2
+    xor al, al
+    cld ; for increment rdi
+    rep stosb ; Work only with rdi register
+
+    pop rcx
+    pop rdi
 %endmacro
 
 %macro copy_to 4
     ; Parameters:
-    ; %1: Source buffer (input)
-    ; %2: Destination buffer (output)
+    ; %1: Input buffer
+    ; %2: Output buffer
     ; %3: Number of bytes to copy
     ; %4: Offset in destination buffer
     
-    push r8  ; iterator 
-    push r9  ; source buffer iterator
-    push rdi ; Output buffer it
-    push rsi ; Input buffer it
-    push rcx ; how much symbols to copy
-    push rdx ; offset for destination buffer
+    push r8
+    push r9
+    push rdi
+    push rsi
+    push rcx
+    push rdx
 
-    mov rsi, %1          ; Input buffer address
-    mov rdi, %2          ; Output buffer address
-    mov rcx, %3          ; How much symbols to copy
-    mov rdx, %4          ; Offset for destination buffer
-
-    xor r9, r9          ; Iterator for source buffer
-    xor r8, r8          ; Iterator for output buffer
+    mov rsi, %1
+    mov rdi, %2
+    mov rcx, %3
+    mov rdx, %4
+    xor r9, r9 ; Iterator for source buffer
+    xor r8, r8 ; Iterator for output buffer
 
     %%copy_loop:
-        cmp r9, rcx         ; If copied all needed symbols, then break
-        jge %%break_loop    ; Changed from jge to jl
+        cmp r9, rcx ; Check if copied all needed symbols
+        jge %%break_loop
 
-        ; Load byte from source
-        mov al, [rsi + r9]  ; Changed from mov rsi, [%1 + r9] to mov al, [rsi + r9]
+        mov al, [rsi + r9]; Load byte
 
-        ; Calculate destination address and store byte
-        add r8, rdx         ; Add offset
-        mov [rdi + r8], al  ; Store single byte, not full register
-        sub r8, rdx         ; Subtract offset to restore r8
+        add r8, rdx ; Add offset
+        mov [rdi + r8], al ; Store byte
+        sub r8, rdx ; Subtract offset 
 
-        inc r8              ; Move to next position in destination
-        inc r9              ; Move to next position in source
+        ; Increment iterators
+        inc r8
+        inc r9
         jmp %%copy_loop
 
     %%break_loop:
