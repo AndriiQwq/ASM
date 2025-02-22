@@ -21,6 +21,7 @@ section .data
     flag_minus db 0 ; Flag for controll a values with minus
 
     r_argument_is_presented db 0 ; Flag for reverse output
+    p_argument_is_presented db 0 ; Flag for paging output
 
     ;0xa is 10('/n'), 0x9 is '/t'
     ;Operator $ read the current position of the diclaration and all next diclarations, 
@@ -38,7 +39,7 @@ section .data
     r_argument db 'provided -r arg', 0xa ; -r argument
     len_r_argument equ $ - r_argument ; Length of the -r argument
 
-    p_argument db 'provided -p arg, press J or K', 0xa ; -p argument
+    p_argument db 'provided -p arg, press J or K', 0 ; -p argument
     len_p_argument equ $ - p_argument ; Length of the -p argument
 
     not_provided_correct_arguments db 'Not provided correct arguments', 0xa ; Message
@@ -53,7 +54,7 @@ section .data
     filename_msg db 0xa, 'Filename:'
     len_print_filename_msg equ $ - filename_msg
 
-    end_of_file_msg db 0xa,'End of reading file:', 0xa
+    end_of_file_msg db 0xa,'End of reading file', 0xa
     len_end_of_file_msg equ $ - end_of_file_msg
 
     screen_separator db 0xa, '-----------------------------------', 0xa
@@ -68,6 +69,9 @@ section .data
     reversed_output_msg db 'Reversed output:', 0xa
     len_reversed_output_msg equ $ - reversed_output_msg
 
+    single_output_msg db 'Output:', 0xa
+    len_single_output_msg equ $ - single_output_msg
+
     count_of_numbers_msg db 0xa, 'Count of numbers:', 0
     len_count_of_numbers_msg equ $ - count_of_numbers_msg
 
@@ -76,6 +80,12 @@ section .data
 
     all_files_readed_msg db 'All files readed', 0xa
     len_all_files_readed_msg equ $ - all_files_readed_msg
+
+    out_of_range_by_minus db 'Out of range by minus', 0xa
+    len_out_of_range_by_minus equ $ - out_of_range_by_minus
+
+    out_of_range_by_plus db 'Out of range by plus', 0xa
+    len_out_of_range_by_plus equ $ - out_of_range_by_plus
 
 section .bss ; segment of non-initialized data
     buffer resb BufferSize64 ; Reserve 65kb for buffer
@@ -89,6 +99,14 @@ section .bss ; segment of non-initialized data
     file_iterator resb FILE_NAME_SIZE ; File iterator, 8 bytes for it 
     current_file resq FILE_NAME_SIZE; Lower bound for the current file in the files vector
 
+    input_key resb 1
+
+    pages resq BufferSize64 * 8; Pages for the files, 8 pages for 8 files
+    current_page_offset resq BufferSize64 * 8; Current page, resq is 8 bytes
+
+    current_page resq BufferSize64 * 8 ; Current page
+    page_to_display resq BufferSize64 ; Page to display
+
 section .text
     global _start ; Start of the program
     %include "macros.inc"  ; Include macros
@@ -96,6 +114,9 @@ section .text
     extern external_function  ; Include external function
 
 _start:
+    mov qword [current_page_offset], 0
+    mov qword [current_page], 0
+
     pop rax     ; argc
     dec rax     ; Decrement argc, for determine the count of arguments
 
@@ -109,6 +130,10 @@ _start:
     jmp check_next_argument
 
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
+
+separate_output:
+    print_string screen_separator, len_screen_separator
+    ret
 
 read_file_name:;Calculate offset for storing new file name
     pop rdi; arg, file name 
@@ -161,7 +186,7 @@ check_next_argument:
     je set_r_flag
 
     cmp byte [rdi + 1], 'p'
-    je ispArgument
+    je set_p_flag
 
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
 
@@ -169,23 +194,40 @@ set_r_flag:
     mov byte [r_argument_is_presented], 1
     jmp check_next_argument
 
+set_p_flag:
+    mov byte [p_argument_is_presented], 1
+
+    clear_screen; Clear the screen
+    print_string p_argument, len_p_argument
+    jmp check_next_argument
+
 end_of_args:; MAIN BODI AFTER READING THE ARGUMENTS
 
     xor rbx, rbx; offset in the filenames vector
 
-    mov qword [current_file], 0
+    mov byte [current_file], 0
     jmp iterate_files
 
+    ; ; cmp byte [p_argument_is_presented], 1
+    ; call wait_for_press_enter
+wait_for_press_enter:
+    read_key_from_keyboard input_key ; Read key from keyboard
+    cmp byte [input_key], 0x0D   ; (enter)
+    je wait_for_press_enter
+    ret
+
 iterate_files:
-    get_time
     cmp byte [count_of_files], 0 ;test if count of files for processing is 0
     jz success_read_files
+
+    ; ; cmp byte [p_argument_is_presented], 1
+    call wait_for_press_enter
 
     mov rbx, [current_file]
     add rbx, FILE_NAME_SIZE ; rbx is FILE OFFSET + 128 bytes for filename by iteration
 
     ; For separete the files output
-    print_string screen_separator, len_screen_separator
+    call separate_output
 
     ; COUNT OF FILES 
     print_string count_of_files_msg, len_count_of_files_msg
@@ -222,9 +264,15 @@ process_file:
 
 success_read_files:
     ; For separete the files output
-    print_string screen_separator, len_screen_separator
+    call separate_output
     ; All files readed message
     print_string all_files_readed_msg, len_all_files_readed_msg
+
+    ; call clean_buffers
+
+    cmp byte [p_argument_is_presented], 1
+    je pre_slide_pages
+
     normal_exit
 
 eror_exit_not_provided_correct_argument:
@@ -254,22 +302,30 @@ read_loop:
 
 end_of_reading_to_buffer: ; End of reading one part of the file to buffer 
     print_string end_of_reading_buffer_msg, len_end_of_reading_buffer_msg
+    ret
+
 
 end_of_file: ;END OF READING FILE
-
     ; Check if -r argument is presented
+    print_string end_of_file_msg, len_end_of_file_msg
+
     cmp byte [r_argument_is_presented], 1
     je process_reversed_output
 
-    print_string end_of_file_msg, len_end_of_file_msg
+    print_string single_output_msg, len_single_output_msg
     
     print_string output_vector, BufferSize64
     call print_count_of_numbers
 
+    cmp byte [p_argument_is_presented], 1
+    je process_paged_output
+
+    ; OUTPUT THE RESULT
+    ; print_string output_vector, BufferSize64
+    ; call print_count_of_numbers
+
     ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
-    clear_buffer output_vector, BufferSize64
-    clear_buffer buffer, BufferSize64
-    clear_buffer buffer_int64, 20
+    call clean_buffers
 
     jmp iterate_files
 
@@ -280,23 +336,119 @@ process_reversed_output:
     ; Out the reversed output
     reverse_string output_vector, BufferSize64, buffer
     print_string buffer, BufferSize64
+    call print_count_of_numbers 
+    
+    cmp byte [p_argument_is_presented], 1
+    je process_reversed_paged_output
 
-    call print_count_of_numbers ; Out the number of the finded numbers
+    ; OUTPUT THE RESULT
+    ; print_string buffer, BufferSize64
+    ; call print_count_of_numbers ; Out the number of the finded numbers
 
     ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
-    clear_buffer output_vector, BufferSize64
-    clear_buffer buffer, BufferSize64
-    clear_buffer buffer_int64, 20
+    call clean_buffers
 
     jmp iterate_files
 
+clean_buffers:
+    clear_buffer output_vector, BufferSize64
+    clear_buffer buffer, BufferSize64
+    clear_buffer buffer_int64, 20
+    ret
+
+process_paged_output:
+    ; output_vector had output data 
+    copy_to output_vector, pages, BufferSize64, [current_page_offset]
+
+    add qword [current_page_offset], BufferSize64
+
+    ; convert_int_to_str buffer_int64, [current_page_offset] ; For print current page 
+    ; print_string buffer_int64, 20
+    ; print_string pages, BufferSize64*8
+
+    call clean_buffers
+    jmp iterate_files
+
+process_reversed_paged_output:
+ 
+    copy_to buffer, pages, BufferSize64, [current_page_offset]
+
+    add qword [current_page_offset], BufferSize64
+
+    ; convert_int_to_str buffer_int64, [current_page_offset]
+    ; print_string buffer_int64, 20
+    ; print_string pages, BufferSize64*8
+
+    call clean_buffers
+    jmp iterate_files
+
+pre_slide_pages:
+    ; call clear_screen
+    print_string p_argument, len_p_argument
+    jmp slide_pages
+
+slide_pages:
+    call clean_buffers
+    read_key_from_keyboard input_key ; Read key from keyboard
+    print_string p_argument, len_p_argument
+    cmp byte [input_key], 0x6A   ; j
+    je next_page
+
+    cmp byte [input_key], 0x6B   ; k
+    je previous_page
+
+    jmp slide_pages
+
+next_page:
+    ; eror handling
+    cmp qword [current_page], BufferSize64*8 - BufferSize64
+    je slide_pages
+
+    add qword [current_page], BufferSize64
+    clear_screen
+    call show_page
+
+    jmp slide_pages
+
+previous_page:
+    ; eror handling
+    cmp qword [current_page], 0
+    je slide_pages
+
+    sub qword [current_page], BufferSize64
+    clear_screen
+    call show_page
+
+    jmp slide_pages
+
+
+show_page:
+    push r12
+    xor r12, r12
+    mov r12, [current_page]
+    add r12, BufferSize64
+    retrive_substring pages, page_to_display, [current_page], r12
+    
+    call clear_screen
+
+    call separate_output
+
+    convert_int_to_str buffer_int64, [current_page]
+    print_string buffer_int64, 20
+
+    call separate_output
+
+
+    print_string page_to_display, BufferSize64
+
+    pop r12
+    ret
 
 do_white_space:
     ; Write space
     mov r9b, 0x20 ; Space
     mov byte [output_vector + r12], r9b 
     inc r12 ; Increment the ouput vector iterator
-    
     ret
 
 count_numbers_loop:
@@ -525,16 +677,6 @@ isHArgument:
     ; Provided Instructions
     print_string h_argument, len_h_argument
     print_string help_msg, len_help_msg
-
-    normal_exit            ; exit the program
-
-ispArgument: ; Paging 
-    clear_screen; Clear the screen
-    print_string p_argument, len_p_argument
-    ; add J and K pres handlers 
-
-    ; add iterator for pages
-
 
     normal_exit            ; exit the program
 

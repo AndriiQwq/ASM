@@ -202,23 +202,53 @@
     pop r12
 %endmacro
 
+%macro copy_to 4
+    ; Parameters:
+    ; %1: Source buffer (input)
+    ; %2: Destination buffer (output)
+    ; %3: Number of bytes to copy
+    ; %4: Offset in destination buffer
+    
+    push r8  ; iterator 
+    push r9  ; source buffer iterator
+    push rdi ; Output buffer it
+    push rsi ; Input buffer it
+    push rcx ; how much symbols to copy
+    push rdx ; offset for destination buffer
 
-%macro get_time 0; time (201)
-    push rax
-    push rdi
-    push rsi
-    push rdx
+    mov rsi, %1          ; Input buffer address
+    mov rdi, %2          ; Output buffer address
+    mov rcx, %3          ; How much symbols to copy
+    mov rdx, %4          ; Offset for destination buffer
 
-    mov rax, 201 ; sys_gettimeofday
-    mov rdi, rdi ; (__kernel_old_time_t *tloc)
-    syscall
+    xor r9, r9          ; Iterator for source buffer
+    xor r8, r8          ; Iterator for output buffer
 
+    %%copy_loop:
+        cmp r9, rcx         ; If copied all needed symbols, then break
+        jge %%break_loop    ; Changed from jge to jl
+
+        ; Load byte from source
+        mov al, [rsi + r9]  ; Changed from mov rsi, [%1 + r9] to mov al, [rsi + r9]
+
+        ; Calculate destination address and store byte
+        add r8, rdx         ; Add offset
+        mov [rdi + r8], al  ; Store single byte, not full register
+        sub r8, rdx         ; Subtract offset to restore r8
+
+        inc r8              ; Move to next position in destination
+        inc r9              ; Move to next position in source
+        jmp %%copy_loop
+
+    %%break_loop:
     pop rdx
+    pop rcx
     pop rsi
     pop rdi
-    pop rax
-
+    pop r9
+    pop r8
 %endmacro
+
 
 
 
