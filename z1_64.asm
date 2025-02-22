@@ -47,10 +47,13 @@ section .data
     comp_error_msg db 'Comp error occured', 0xa ;
     len_comp_error_msg equ $ - comp_error_msg
 
-    end_of_file_msg db 0xa,'End of riading file', 0xa
+    filename_msg db 0xa, 'Filename:'
+    len_print_filename_msg equ $ - filename_msg
+
+    end_of_file_msg db 0xa,'End of riading file:', 0xa
     len_end_of_file_msg equ $ - end_of_file_msg
 
-    end_of_riading_buffer_msg db 0xa, 'End of riading buffer', 0xa
+    end_of_riading_buffer_msg db 0xa, 'End of riading buffer', 0
     len_end_of_riading_buffer_msg equ $ - end_of_riading_buffer_msg
 
     help_msg dq 'Help:  informácie o programe a jeho použití: ', 0xa,'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter', 0xa,  'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa
@@ -62,9 +65,8 @@ section .data
     count_of_numbers_msg db 0xa, 'Count of numbers:', 0
     len_count_of_numbers_msg equ $ - count_of_numbers_msg
 
-    count_of_files_msg db 0xa, 'Count of files:', 0xa
+    count_of_files_msg db 0xa, 'Count of files:', 0
     len_count_of_files_msg equ $ - count_of_files_msg
-    ; numbers db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ; Array of numbers
 
 
 section .bss ; segment of non-initialized data
@@ -163,12 +165,6 @@ write_file_name:
     jmp write_char
 
 return_from_write:
-    ; inc byte [count_of_files]    ;Increment count of files
-
-    ; mov edx, [file_iterator]
-    ; add edx, FILE_NAME_SIZE; to increase offset 
-    ; mov [file_iterator], edx
-
     ret
 
 write_char:
@@ -207,10 +203,12 @@ set_r_flag:
 
 end_of_args:; MAIN BODI AFTER READING THE ARGUMENTS
     ; Iterate over the files
-    movzx rcx, byte [count_of_files];count of files
+    ; movzx rcx, byte [count_of_files];count of files
+    ; rcx is 64 bytes register, but count_of_files is 8 bytes
+    ; We use movzx for fill the rest of the register with 0
 
-    convert_int_to_str buffer_int64, [count_of_files]
-    mov rcx, buffer_int64
+    ; convert_int_to_str buffer_int64, [count_of_files]
+    ; mov rcx, buffer_int64
 
 
     xor rbx, rbx; offset in the filenames vector
@@ -219,41 +217,31 @@ end_of_args:; MAIN BODI AFTER READING THE ARGUMENTS
     jmp iterate_files
 
 iterate_files:
-    ; movzx rcx, byte [count_of_files]
-    cmp rcx, '0' ;test if count of files for processing is 0
+    cmp byte [count_of_files], 0 ;test if count of files for processing is 0
     jz success_read_files
-    
-    ; convert_int_to_str buffer_int64, [file_iterator]
-    ; print_string buffer_int64, 20
 
     mov rbx, [current_file]
-    add rbx, FILE_NAME_SIZE
-
-    ; Debag Info, start and end of slize
-    ; convert_int_to_str buffer_int64, [current_file]
-    ; print_string buffer_int64, 20
-
-    ; convert_int_to_str buffer_int64, rbx
-    ; print_string buffer_int64, 20
-
-    retrive_substring files, filename, [current_file], rbx
-    ; print_string filename, FILE_NAME_SIZE 
+    add rbx, FILE_NAME_SIZE ; rbx is FILE OFFSET + 128 bytes for filename by iteration
 
     ; COUNT OF FILES 
     print_string count_of_files_msg, len_count_of_files_msg
     convert_int_to_str buffer_int64, [count_of_files]
     print_string buffer_int64, 20
 
-    mov [current_file], rbx
-    dec rcx
+    ; Get the filename, and print it 
+    retrive_substring files, filename, [current_file], rbx
+    print_string filename_msg, len_print_filename_msg
+    print_string filename, FILE_NAME_SIZE 
 
+    ; Set current file 
+    mov [current_file], rbx
+    ; Update the count of files
+    dec byte [count_of_files]
+
+    ; MAIN LOGIC FOR PROCESSING THE FILE
     call process_file
 
-
     jmp iterate_files
-
-; read_current_filename:
-;     mov 
 
 process_file:
     open_file filename, O_RDONLY, 0644; Syscall return the result of the operation in the rax register, so we need check it for errors
@@ -309,7 +297,6 @@ read_loop:
     ; mov [file_offset], rax
 
     ; set_file_offset r15, file_offset
-
     read_string_from_the_file r15, buffer, BufferSize64
 
     ; print_string buffer, BufferSize64
@@ -336,22 +323,26 @@ end_of_riading_to_buffer: ; End of reading one part of the file to buffer
     print_string end_of_riading_buffer_msg, len_end_of_riading_buffer_msg
 
 end_of_file: ; End of reading file
-    print_string end_of_file_msg, len_end_of_file_msg
-
     ;END OF READING FILE
-    ; ; Convert the count of numbers to the string, and out it out 
+
+    ; Check if -r argument is presented
     cmp byte [r_argument_is_presented], 1
     je process_reversed_output
 
-    call print_count_of_numbers
+    print_string end_of_file_msg, len_end_of_file_msg
+    
     print_string output_vector, BufferSize64
+    call print_count_of_numbers
 
-    call clear_output_buffer
+    ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
+    clear_buffer output_vector, BufferSize64
+    clear_buffer buffer, BufferSize64
+    clear_buffer buffer_int64, 20
 
     jmp iterate_files
 
 process_reversed_output:
-    clear_screen; Clear the screen
+    ; clear_screen; Clear the screen
     ; Do outoput reverse
     print_string reversed_output_msg, len_reversed_output_msg
 
@@ -359,27 +350,18 @@ process_reversed_output:
     reverse_string output_vector, BufferSize64, buffer
     print_string buffer, BufferSize64
 
-    call print_count_of_numbers
+    call print_count_of_numbers ; Out the number of the finded numbers
+
+    ; CLEAR OLL BUFFERS TO EVOID THE ERRORS WITH OWERITING THE DATA
+    clear_buffer output_vector, BufferSize64
+    clear_buffer buffer, BufferSize64
+    clear_buffer buffer_int64, 20
 
     jmp iterate_files
 
 
-clear_output_buffer:
-    cmp r12, BufferSize64
-    jge end_of_clear_output_buffer
-    mov byte [output_vector + r12], 0x20
-    inc r12
-    jmp clear_output_buffer
-
-end_of_clear_output_buffer:
-    pop rdi
-    pop rcx
-    jmp iterate_files  
-    
-
 do_white_space:
     ; Write space
-    
     mov r9b, 0x20 ; Space
     mov byte [output_vector + r12], r9b 
     inc r12 ; Increment the ouput vector iterator

@@ -179,5 +179,20 @@
     pop rax
 %endmacro
 
+%macro clear_buffer 2 ; Buffer and his maximal size
+    push r12
+    xor r12, r12
+
+    %%clear_buffer: 
+    cmp r12, %2
+    jge %%end_of_clear_buffer
+    mov byte [%1 + r12], 0
+    inc r12
+    jmp %%clear_buffer
+
+    %%end_of_clear_buffer:
+    pop r12
+%endmacro
+
 
 %endif
