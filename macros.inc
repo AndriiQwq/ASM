@@ -4,6 +4,7 @@
 
 ; Using commands like "push" and "pop" for storing their context on the stack, and up it from the stack
 ; Store and return registers, to avoid overwriting the registers and colisions
+; Using movzx for move value to register and fill the rest of the register with zeros
 
 %macro print_string 2
     push rax
@@ -24,10 +25,10 @@
 %endmacro
 
 %macro reverse_string 3
-    mov rsi, %1;string add 
-    mov rcx, %2;length
-    mov rdi, %3;dest add
-    mov rdx, 0 ; counter
+    mov rsi, %1    ;string add 
+    mov rcx, %2    ;length
+    mov rdi, %3    ;dest add
+    mov rdx, 0   ; counter
 
     %%reverse:
         mov al, [rsi + rcx - 1] ; Copy the least sign to al register
@@ -43,6 +44,7 @@
 %endmacro
 
 %macro normal_exit 0
+    print_string succsfull_exit, len_succsfull_exit
     exit 0
 %endmacro
 
@@ -73,6 +75,14 @@
     mov rdi, %1 ; file descriptor
     mov rsi, %2 ; buffer address
     mov rdx, %3 ; buffer size
+    syscall
+%endmacro
+
+%macro read_key_from_keyboard 1 ; read(0)
+    mov rax, 0  ; sys_read
+    mov rdi, 0  ; file descriptor
+    mov rsi, %1 ; output buffer
+    mov rdx, 1 ; buffer size in bytes
     syscall
 %endmacro
 
@@ -121,8 +131,6 @@
     %%copy_loop:
         cmp rcx, rdx ;If copy all nedeed symbols, then break
         jge %%break_loop 
-
-
 
         mov al, [rsi + rcx]
 
@@ -193,6 +201,25 @@
     %%end_of_clear_buffer:
     pop r12
 %endmacro
+
+
+%macro get_time 0; time (201)
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
+    mov rax, 201 ; sys_gettimeofday
+    mov rdi, rdi ; (__kernel_old_time_t *tloc)
+    syscall
+
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+
+%endmacro
+
 
 
 %endif
