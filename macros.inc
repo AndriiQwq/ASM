@@ -210,7 +210,7 @@
     pop rdi
 %endmacro
 
-%macro copy_to 4
+%macro copy_to 4 ; Copy x bytes from first buffer to second buffer with offset
     ; Parameters:
     ; %1: Input buffer
     ; %2: Output buffer

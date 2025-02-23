@@ -10,6 +10,8 @@
         ; 5. Quality of the documentation
         ; 6. External function for function of the program
         ; 7. Using function for string instructions (MOVS, CMPS, STOS, ...)
+        ; 8. Suport paging for input files (-p)
+        ; 9. Sliding pages using "j" and "k" buttons
 
 ; Termín odovzdávania: 3/23/2025
 ; 2 Ročník, 2024/2025, letný semester, FIIT
@@ -21,6 +23,7 @@
 BufferSize64 equ 65536 ; constant 64kb
 O_RDONLY equ 0 ; Only reading file flag 
 FILE_NAME_SIZE equ 128 ; Filename size
+NUMBER_SIZE equ 20 ; Number size
 section .data
     flag db 0 ; Flag for controll a irrational values with dot
     flag_minus db 0 ; Flag for controll a values with minus
@@ -66,8 +69,23 @@ section .data
     screen_separator db 0xa, '-----------------------------------', 0xa
     len_screen_separator equ $ - screen_separator
 
+    string_separator db '|', 0
+    len_string_separator equ $ - string_separator
+
+    slesh_separator db '/', 0
+    len_slesh_separator equ $ - slesh_separator
+
+    persent_separator db '%', 0
+    len_persent_separator equ $ - persent_separator
+
+    data_not_presented_msg db 'Data not presented.', 0
+    len_data_not_presented_msg equ $ - data_not_presented_msg
+
     end_of_reading_buffer_msg db 0xa, 'End of reading buffer.', 0
     len_end_of_reading_buffer_msg equ $ - end_of_reading_buffer_msg
+
+    reach_reange_msg db 'You reach the the boundary of sliding pages. ', 0xa, 'Press "j" for next page, and "k" for previous page.', 0
+    len_reach_reange_msg equ $ - reach_reange_msg
 
     help_msg0 db 'Help:', 0x0
     len_help_msg0 equ $ - help_msg0 
@@ -75,7 +93,7 @@ section .data
     help_msg1 dq 'Information about program and his using:', 0xa, 0x9, 'This program suport file above 64kb, and can read the files from arguments', 0xa, 0x9,'By default program suport 8 files from arguments', 0xa
     len_help_msg1 equ $ - help_msg1
 
-    help_msg2 dq 'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter. ', 0xa, 0x9,'The prgramm read the files from the arguments, and the you can see it by pressing Enter button.', 0xa, 0x9,'If you using the -p argument you, after this you can slide the pages using "j" and "k" buttons, and presing Enter button.', 0xa
+    help_msg2 dq 'Hou to use: ', 0xa,  0x9, 'Input the file name nad press enter. ', 0xa, 0x9,'The prgramm read the files from the arguments, and the you can see it by pressing Enter button.', 0xa, 0x9,'If you using the -p argument you, after this you can slide the pages using "j" and "k" buttons, and presing Enter button. Press "q" for exit.', 0xa
     len_help_msg2 equ $ - help_msg2
 
     help_msg3 dq 'Exemple:', 0xa, 0x9, 'program_name -f file1.txt -f file2.txt -r -p', 0xa, 'Arguments:',0xa,  0x9, '-h: help', 0xa,  0x9, '-r: recursive output', 0xa, 0x9, '-p: paged output', 0xa,  0x9, '-f: file name', 0xa
@@ -122,6 +140,12 @@ section .bss ; segment of non-initialized data
     current_page resq BufferSize64 * 8 ; Current page
     page_to_display resq BufferSize64 ; Page to display
 
+    results_INT64 resq 20 * 8
+    current_result_offset resq 20 * 8
+    current_result resq 20 ;current result, count of numbers
+
+    result_to_display resq 20 ; Result to display
+
 section .text
     global _start ; Start of the program
     %include "macros.inc"  ; Include macros
@@ -131,6 +155,8 @@ section .text
 _start:
     mov qword [current_page_offset], 0
     mov qword [current_page], 0
+
+    mov qword [current_result_offset], 0
 
     pop rax     ; argc
     dec rax     ; Decrement argc, for determine the count of arguments
@@ -151,7 +177,7 @@ separate_output:
     ret
 
 read_file_name:;Calculate offset for storing new file name
-    pop rdi; arg, file name 
+    ; pop rdi; arg, file name 
     mov r11, 0; offset for current name 
     call write_file_name
     
@@ -180,13 +206,20 @@ write_char:
     inc r11
     jmp write_file_name
 
+isRArgument: 
+    pop rdi ; arg, file name 
+    cmp rdi, 1 ; Check if the argument exist
+    jl eror_exit_not_provided_correct_argument
+
+    jmp read_file_name
+
 check_next_argument:
     pop rdi
     cmp rdi, 0
     je end_of_args ; Not arguments any more
             
     cmp byte [rdi], '-'
-    jne call_external_function ;
+    jne isHArgument ;
     
     ; FIRST CHECK IF IT IS A DOCKUMENTATION FLAG
     cmp byte [rdi + 1], 'h'
@@ -194,7 +227,7 @@ check_next_argument:
 
     ; CHECK FILE NAMES, THEY HAVE FLAG "-f" and body "filename.txt"
     cmp byte [rdi + 1], 'f'
-    je read_file_name
+    je isRArgument
 
     ; Set the -r flag
     cmp byte [rdi + 1], 'r'
@@ -292,10 +325,6 @@ eror_exit_not_provided_correct_argument:
     print_string see_documentation_help_msg, len_see_documentation_help_msg
     error_exit comp_error_msg, len_comp_error_msg
 
-call_external_function:
-    call external_function  ; Call external function, which not provided correct argument
-    jmp normal_exit
-
 no_arguments:
     print_string not_provided_arguments, len_not_provided_arguments
     print_string see_documentation_help_msg, len_see_documentation_help_msg
@@ -364,8 +393,10 @@ clean_buffers:
 process_paged_output:
     ; output_vector had output data 
     copy_to output_vector, pages, BufferSize64, [current_page_offset]
-
     add qword [current_page_offset], BufferSize64
+
+    copy_to buffer_int64, results_INT64, NUMBER_SIZE, [current_result_offset]
+    add qword [current_result_offset], 20
 
     call clean_buffers
     jmp iterate_files
@@ -373,8 +404,10 @@ process_paged_output:
 process_reversed_paged_output:
  
     copy_to buffer, pages, BufferSize64, [current_page_offset]
-
     add qword [current_page_offset], BufferSize64
+
+    copy_to buffer_int64, results_INT64, NUMBER_SIZE, [current_result_offset]
+    add qword [current_result_offset], 20
 
     call clean_buffers
     jmp iterate_files
@@ -402,6 +435,7 @@ next_page:
     je clean_and_return_to_slide_pages
 
     add qword [current_page], BufferSize64
+    add qword [current_result], NUMBER_SIZE
     clear_screen
     call show_page
 
@@ -413,6 +447,7 @@ previous_page:
     je clean_and_return_to_slide_pages
 
     sub qword [current_page], BufferSize64
+    sub qword [current_result], NUMBER_SIZE
     clear_screen
     call show_page
 
@@ -426,7 +461,23 @@ clean_and_return_to_slide_pages:
     convert_int_to_str buffer_int64, [current_page]
     print_string buffer_int64, 20
 
+    call print_string_separator
+
+    clear_buffer buffer_int64, 20
+    call calculate_current_position_count
+
+    call print_string_separator
+
+    clear_buffer buffer_int64, 20
+    call calculate_position_in_persent
+
+    call print_string_separator
+
     call separate_output
+
+    print_string reach_reange_msg, len_reach_reange_msg
+    call separate_output
+
     jmp slide_pages
 
 show_page:
@@ -435,20 +486,154 @@ show_page:
     mov r12, [current_page]
     add r12, BufferSize64
     retrive_substring pages, page_to_display, [current_page], r12
-    
+    pop r12
     clear_screen
 
     call separate_output
 
     convert_int_to_str buffer_int64, [current_page]
     print_string buffer_int64, 20
+    
+    call print_string_separator
+
+    clear_buffer buffer_int64, 20
+    call calculate_current_position_count
+
+    call print_string_separator
+
+    clear_buffer buffer_int64, 20
+    call calculate_position_in_persent
+
+    call print_string_separator
 
     call separate_output
 
+    push r12
+    ; Retrive the count of numbers
+    xor r12, r12
+    mov r12, [current_result]
+    add r12, NUMBER_SIZE
+    call clear_buffer result_to_display, NUMBER_SIZE
+    retrive_substring results_INT64, result_to_display, [current_result], r12
+    pop r12
+    ; Check if count of numbers is null
+    call pre_check_number_is_presented
 
+    ; Print the numbers
     print_string page_to_display, BufferSize64
 
-    pop r12
+    call separate_output
+
+    ;Print the count of numbers
+    print_string result_to_display, NUMBER_SIZE
+
+    call separate_output
+
+    ret
+
+pre_check_number_is_presented:
+    xor r13, r13
+    xor r12, r12
+    xor r10, r10
+    jmp check_number_is_presented
+
+check_number_is_presented:
+    cmp r13, NUMBER_SIZE
+    jge data_not_presented ;ret 
+
+    mov r10b, byte [result_to_display + r13]
+
+    cmp r10b, '0'
+    je number_is_presented
+
+    cmp r10b, '1'
+    je number_is_presented
+
+    cmp r10b, '2'
+    je number_is_presented
+
+    cmp r10b, '3'
+    je number_is_presented
+
+    cmp r10b, '4'
+    je number_is_presented
+
+    cmp r10b, '5'
+    je number_is_presented
+
+    cmp r10b, '6'
+    je number_is_presented
+
+    cmp r10b, '7'
+    je number_is_presented
+
+    cmp r10b, '8'
+    je number_is_presented
+
+    cmp r10b, '9'
+    je number_is_presented
+
+    inc r13
+
+    jmp check_number_is_presented
+
+number_is_presented:
+    ret
+data_not_presented:
+    print_string data_not_presented_msg, len_data_not_presented_msg
+    call separate_output
+    jmp slide_pages
+
+calculate_current_position_count:
+    mov rax, [current_page_offset] ; dividend
+    xor rdx, rdx ;
+    mov rcx, BufferSize64 ; divisor
+    div rcx  ; rax = rax / rcx, rdx = rax % rcx
+    mov r12, rax ;result
+
+    mov rax, [current_page]
+    xor rdx, rdx
+    mov rcx, BufferSize64
+    div rcx
+    mov r13, rax
+
+    convert_int_to_str buffer_int64, r13
+    print_string buffer_int64, 20
+    clear_buffer buffer_int64, 20
+
+    print_string slesh_separator, 1
+
+    convert_int_to_str buffer_int64, r12
+    print_string buffer_int64, 20
+    ret
+
+calculate_position_in_persent:
+    ; (current_page * 100) / current_page_offset
+    mov rax, [current_page]
+    mov rbx, 100
+    mul rbx ; rax = current_page * 100
+
+    mov rcx, [current_page_offset]
+    cmp rcx, 0 ; devision by zerp
+    je devision_by_zero 
+
+    xor rdx, rdx
+    div rcx ; result 
+    
+    convert_int_to_str buffer_int64, rax ;Out the result in persent
+    print_string buffer_int64, 20
+    print_string persent_separator, len_persent_separator
+    ret
+
+print_string_separator:
+    print_string string_separator, len_string_separator
+    ret
+
+devision_by_zero: 
+    mov rbx, 0
+    convert_int_to_str buffer_int64, rbx
+    print_string buffer_int64, 20
+    print_string persent_separator, len_persent_separator
     ret
 
 do_white_space:
