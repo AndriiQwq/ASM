@@ -6,6 +6,12 @@
 
 # Example: bash executer.bash z1_64 z1_64
 
+# Comand sumarizer:
+# nasm -f elf64 external_proc.asm -o external_proc.o
+# nasm -f elf64 -g -o ${output_file}.o ${input_file}
+# ld ${output_file}.o external_proc.o -o ${output_file}
+# ./${output_file}
+
 if [ $# -ne 2 ]; then
     echo "Usage: $0 <input_file.asm> <output_file>"
     exit 1
