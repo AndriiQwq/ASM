@@ -192,7 +192,7 @@
     ; CLD (Clear Direction Flag) - rdi will be incremented
     ; STD (Set Direction Flag) - rdi will be decremented
     ; Rep with stosb using for repeat this operation
-    ; Rep using rcx register and decrement if
+    ; Rep using rcx register and decrement it to zero
 
     ; Stosw, Stosd, Stosq - for 2, 4, 8 bytes
     ; Stosb - for 1 byte
@@ -254,7 +254,6 @@
     pop r9
     pop r8
 %endmacro
-
 
 
 

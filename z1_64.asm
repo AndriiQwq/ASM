@@ -69,6 +69,9 @@ section .data
     screen_separator db 0xa, '-----------------------------------', 0xa
     len_screen_separator equ $ - screen_separator
 
+    new_line db 0xa, 0
+    len_new_line equ $ - new_line
+
     string_separator db '|', 0
     len_string_separator equ $ - string_separator
 
@@ -83,6 +86,9 @@ section .data
 
     end_of_reading_buffer_msg db 0xa, 'End of reading buffer.', 0
     len_end_of_reading_buffer_msg equ $ - end_of_reading_buffer_msg
+
+    count_of_number_msg db 0xa, 'Count of numbers: ', 0
+    len_count_of_number_msg equ $ - count_of_number_msg
 
     reach_reange_msg db 'You reach the the boundary of sliding pages. ', 0xa, 'Press "j" for next page, and "k" for previous page.', 0
     len_reach_reange_msg equ $ - reach_reange_msg
@@ -105,7 +111,7 @@ section .data
     single_output_msg db 'Output:', 0xa
     len_single_output_msg equ $ - single_output_msg
 
-    count_of_numbers_msg db 0xa, 'Count of numbers:', 0
+    count_of_numbers_msg db 'Count of numbers:', 0
     len_count_of_numbers_msg equ $ - count_of_numbers_msg
 
     count_of_files_msg db 'Count of files:', 0
@@ -524,6 +530,7 @@ show_page:
 
     call separate_output
 
+    print_string count_of_numbers_msg, len_count_of_numbers_msg
     ;Print the count of numbers
     print_string result_to_display, NUMBER_SIZE
 
@@ -533,8 +540,6 @@ show_page:
 
 pre_check_number_is_presented:
     xor r13, r13
-    xor r12, r12
-    xor r10, r10
     jmp check_number_is_presented
 
 check_number_is_presented:
@@ -544,39 +549,14 @@ check_number_is_presented:
     mov r10b, byte [result_to_display + r13]
 
     cmp r10b, '0'
-    je number_is_presented
-
-    cmp r10b, '1'
-    je number_is_presented
-
-    cmp r10b, '2'
-    je number_is_presented
-
-    cmp r10b, '3'
-    je number_is_presented
-
-    cmp r10b, '4'
-    je number_is_presented
-
-    cmp r10b, '5'
-    je number_is_presented
-
-    cmp r10b, '6'
-    je number_is_presented
-
-    cmp r10b, '7'
-    je number_is_presented
-
-    cmp r10b, '8'
-    je number_is_presented
-
+    jb check_number_failed
     cmp r10b, '9'
-    je number_is_presented
+    ja check_number_failed
 
+    jmp number_is_presented
+check_number_failed:
     inc r13
-
     jmp check_number_is_presented
-
 number_is_presented:
     ret
 data_not_presented:
@@ -658,35 +638,18 @@ count_numbers_loop:
     cmp r10b, '-'
     je found_minus
 
+    jmp check_it_is_number_count_numbers
+
+check_it_is_number_count_numbers:
     cmp r10b, '0'
-    je found_number
+    jae check_upper_bound_count_numbers
 
-    cmp r10b, '1'
-    je found_number
+    inc r13
+    jmp count_numbers_loop
 
-    cmp r10b, '2'
-    je found_number
-
-    cmp r10b, '3'
-    je found_number
-
-    cmp r10b, '4'
-    je found_number
-
-    cmp r10b, '5'
-    je found_number
-
-    cmp r10b, '6'
-    je found_number
-
-    cmp r10b, '7'
-    je found_number
-
-    cmp r10b, '8'
-    je found_number
-
+check_upper_bound_count_numbers:
     cmp r10b, '9'
-    je found_number
+    jbe found_number
 
     inc r13
     jmp count_numbers_loop
@@ -698,39 +661,19 @@ found_minus: ; '-' alwase at begin of the string
     ;check if next symbol is number
     mov r10b, byte [buffer + r13]
 
+    jmp check_it_is_number_up_minus_and_digit
+
+check_it_is_number_up_minus_and_digit:
     cmp r10b, '0'
-    je up_minus_and_digit
-
-    cmp r10b, '1'
-    je up_minus_and_digit
-
-    cmp r10b, '2'
-    je up_minus_and_digit
-
-    cmp r10b, '3'
-    je up_minus_and_digit
-
-    cmp r10b, '4'
-    je up_minus_and_digit
-
-    cmp r10b, '5'
-    je up_minus_and_digit
-
-    cmp r10b, '6'
-    je up_minus_and_digit
-
-    cmp r10b, '7'
-    je up_minus_and_digit
-
-    cmp r10b, '8'
-    je up_minus_and_digit
-
-    cmp r10b, '9'
-    je up_minus_and_digit
-
-    jmp count_numbers_loop ; We set iterator to the next symbol, 
+    jae check_upper_bound_check_it_is_number_up_minus_and_digit
+    jmp count_numbers_loop; We set iterator to the next symbol, 
     ;and we can return to the main loop of fainding the numbers
 
+check_upper_bound_check_it_is_number_up_minus_and_digit:
+    cmp r10b, '9'
+    jbe up_minus_and_digit
+    jmp count_numbers_loop; We set iterator to the next symbol, 
+    ;and we can return to the main loop of fainding the numbers
 
 found_number:
     ; Write sign to the output vector
@@ -745,36 +688,16 @@ found_number:
     cmp r10b, '.'
     je found_dot
 
+    jmp check_it_is_number_found_number
+
+check_it_is_number_found_number:
     cmp r10b, '0'
-    je found_number
+    jae check_upper_bound_found_number
+    jmp up_digit
 
-    cmp r10b, '1'
-    je found_number
-
-    cmp r10b, '2'
-    je found_number
-
-    cmp r10b, '3'
-    je found_number
-
-    cmp r10b, '4'
-    je found_number
-
-    cmp r10b, '5'
-    je found_number
-
-    cmp r10b, '6'
-    je found_number
-
-    cmp r10b, '7'
-    je found_number
-
-    cmp r10b, '8'
-    je found_number
-
+check_upper_bound_found_number:
     cmp r10b, '9'
-    je found_number
-
+    jbe found_number
     jmp up_digit
 
 found_dot: ; For example 1.2, we need to chendle sotuation when 6.. or 6.6.6 ot 6.gddfgdg
@@ -790,36 +713,19 @@ found_dot: ; For example 1.2, we need to chendle sotuation when 6.. or 6.6.6 ot 
     cmp r10b, '.'
     je twice_dot_was_found
 
+    jmp check_it_is_number_found_dot
+
+check_it_is_number_found_dot:
     cmp r10b, '0'
-    je up_dot_and_digit
+    jae check_upper_bound_found_dot
 
-    cmp r10b, '1'
-    je up_dot_and_digit
+    call do_white_space
+    inc r14; Count of numbers, we read the number and read dot, but after dot was not number
+    jmp count_numbers_loop ; so , this is not a number, go to finding the next number 
 
-    cmp r10b, '2'
-    je up_dot_and_digit
-
-    cmp r10b, '3'
-    je up_dot_and_digit
-
-    cmp r10b, '4'
-    je up_dot_and_digit
-
-    cmp r10b, '5'
-    je up_dot_and_digit
-
-    cmp r10b, '6'
-    je up_dot_and_digit
-
-    cmp r10b, '7'
-    je up_dot_and_digit
-
-    cmp r10b, '8'
-    je up_dot_and_digit
-
+check_upper_bound_found_dot:
     cmp r10b, '9'
-    je up_dot_and_digit
-
+    jbe up_dot_and_digit
     ; If not found the number, this mean thhat it found the another symbol that 0-9
     ; Continue our finding the number with a new iteration
 
@@ -827,7 +733,7 @@ found_dot: ; For example 1.2, we need to chendle sotuation when 6.. or 6.6.6 ot 
     call do_white_space
     inc r14; Count of numbers, we read the number and read dot, but after dot was not number
 
-    jmp count_numbers_loop ; so , this is not a number, go to finding the next number
+    jmp count_numbers_loop ; so , this is not a number, go to finding the next number 
 
 twice_dot_was_found:
     inc r14        ; Increment number count
@@ -878,6 +784,7 @@ isHArgument:
 
 print_count_of_numbers:
     ; Convert the count of numbers to the string, and out it out 
+    print_string new_line, len_new_line
     print_string count_of_numbers_msg, len_count_of_numbers_msg
     
     convert_int_to_str buffer_int64, r14
