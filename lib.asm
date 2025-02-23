@@ -135,13 +135,12 @@ section .bss ; segment of non-initialized data
     result_to_display resq 20 ; Result to display
 
 section .text
-    global external_function    
+    global numcnt    
     %include "macros.inc" ; Include macros
 
-external_function:
+numcnt:
     mov qword [current_page_offset], 0
     mov qword [current_page], 0
-
     mov qword [current_result_offset], 0
 
     pop rax     ; argc
@@ -467,6 +466,32 @@ clean_and_return_to_slide_pages:
 
     call separate_output
 
+
+    ;/////////////////////
+    push r12
+    ; Retrive the count of numbers
+    xor r12, r12
+    mov r12, [current_result]
+    add r12, NUMBER_SIZE
+    clear_buffer result_to_display, NUMBER_SIZE
+    retrive_substring results_INT64, result_to_display, [current_result], r12
+    pop r12
+    ; Check if count of numbers is null
+    call pre_check_number_is_presented
+
+    ; Print the numbers
+    print_string page_to_display, BufferSize64
+
+    call separate_output
+
+    print_string count_of_numbers_msg, len_count_of_numbers_msg
+    ;Print the count of numbers
+    print_string result_to_display, NUMBER_SIZE
+
+    call separate_output
+    ;////////////////////////
+
+
     print_string reach_reange_msg, len_reach_reange_msg
     call separate_output
 
@@ -562,27 +587,34 @@ calculate_current_position_count:
     mov rcx, BufferSize64
     div rcx
     mov r13, rax
+    
+    dec r12;Start from 0 page
 
-    convert_int_to_str buffer_int64, r13
+    convert_int_to_str buffer_int64, r13;Out current page
     print_string buffer_int64, 20
     clear_buffer buffer_int64, 20
 
     print_string slesh_separator, 1
 
-    convert_int_to_str buffer_int64, r12
+    convert_int_to_str buffer_int64, r12;out the count of pages
     print_string buffer_int64, 20
     ret
 
 calculate_position_in_persent:
     ; (current_page * 100) / current_page_offset
     mov rax, [current_page]
+
+    add qword rax, BufferSize64
+
     mov rbx, 100
     mul rbx ; rax = current_page * 100
 
     mov rcx, [current_page_offset]
+    dec rcx 
+    
     cmp rcx, 0 ; devision by zerp
     je devision_by_zero 
-
+    
     xor rdx, rdx
     div rcx ; result 
     

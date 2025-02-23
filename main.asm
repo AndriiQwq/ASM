@@ -24,11 +24,11 @@ section .text
     global _start ; Start of the program
     %include "macros.inc"  ; Include macros
 
-    extern external_function  ; Include external function
+    extern numcnt ; Include external function
 
 _start:
     ; Save arguments
     pop rdi; argc
-    mov rsi, rsp; argv, copy pointer to the arguments to rsi
+    mov rsi, rsp; argv, copy pointer to the arguments
 
-    call external_function
+    call numcnt

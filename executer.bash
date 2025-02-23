@@ -4,12 +4,12 @@
 # First parameter is the input file name
 # Second parameter is the output file name
 
-# Example: bash executer.bash z1_64 z1_64
+# Example: bash executer.bash main main
 
 # Comand sumarizer:
-# nasm -f elf64 external_proc.asm -o external_proc.o
+# nasm -f elf64 lib.asm -o lib.o
 # nasm -f elf64 -g -o ${output_file}.o ${input_file}
-# ld ${output_file}.o external_proc.o -o ${output_file}
+# ld ${output_file}.o lib.o -o ${output_file}
 # ./${output_file}
 
 if [ $# -ne 2 ]; then
@@ -20,8 +20,8 @@ fi
 input_file=$1.asm
 output_file=$2
 
-if ! nasm -f elf64 external_proc.asm -o external_proc.o; then
-    echo "Failed to compile external_proc.asm"
+if ! nasm -f elf64 lib.asm -o lib.o; then
+    echo "Failed to compile lib.asm"
     exit 1
 fi
 
@@ -30,7 +30,7 @@ if ! nasm -f elf64 -g -o ${output_file}.o ${input_file}; then
     exit 1
 fi
 
-if ! ld ${output_file}.o external_proc.o -o ${output_file}; then
+if ! ld ${output_file}.o lib.o -o ${output_file}; then
     echo "Failed to link object files"
     exit 1
 fi
