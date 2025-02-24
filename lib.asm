@@ -150,8 +150,6 @@ numcnt:
     cmp rdi, 0
     je no_arguments ; If not provided arguments, then go to single program execution
 
-    mov rsi, rsp 
-
     ; Else get the arguments
     pop rbx  ; argv[0] is first argument(file name), skip it
 

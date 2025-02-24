@@ -21,10 +21,9 @@
 section .data
     not_provided_arguments_for_external_program db 'Not provided arguments for external program', 0xa
     len_not_provided_arguments_for_external_program equ $ - not_provided_arguments_for_external_program
-    ; https://github.com/z80playground/cpm-fat/tree/8ee6486ea08b04c865f9b2c67a22dcac15e5a1b5
-    ; To clear the screen
-    clear db 27, '[2J' ,27, '[H'
-    len_clear equ $ - clear
+    
+    clear db 27, '[2J' ,27, '[H'; To clear the screen
+    len_clear equ $ - clear     ; https://github.com/z80playground/cpm-fat/tree/8ee6486ea08b04c865f9b2c67a22dcac15e5a1b5
 
 section .text
     global _start ; Declere start of the program
@@ -39,7 +38,6 @@ _start:; Save arguments, befor runing the main program
     cmp rdi, 0
     je not_provided_argv    ; If not provided arguments, then go to single program execution
 
-    mov rsi, rsp            ; argv, copy pointer to the arguments
     call numcnt
 
 not_provided_argv:
@@ -51,7 +49,7 @@ not_provided_argv:
 ; V programe osetrene chybove stavy, teda zlyganij pri spravnom pouziti nebolo najdene
 ; S prostried moznych vylepseni patri pridanie dinamickej alokacie pamate pri nacitanie suborov, 
 ; zmensenie vyuzitia .bss segmentu(t.j. pamat v bss segmente je alokovana staticky, co moze sposobit problemy s pamatou)
-; vecse pouzivat stack a ine codove zlepsovia
+; vecse pouzivat stack a ine codove zlepsovia ako napriklad lepsie spracovanie nacittania programu do buderu.
 ; V programe pol pouzite lagoritmy na zistenie ci je v subore cislo, ak ano, tak dat ho do vystopu a vypisat pocet cisel v subore
 ; Poli pouzite makra na pracu s subormi, nacitani dat, pracu s retazcami, ako napriklad rozne sposoby copirovania retazcov, podretazcov.
 ; Taktiez bloli pouzite makra pre rozne vypisy, zmazanie obrazovky, konvertacia cisla na retazec a ukoncenia programu.
