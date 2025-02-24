@@ -18,17 +18,33 @@
 ; Program with discription: 
 ; For help use -h argument
 
+section .data
+    not_provided_arguments_for_external_program db 'Not provided arguments for external program', 0xa
+    len_not_provided_arguments_for_external_program equ $ - not_provided_arguments_for_external_program
+    ; https://github.com/z80playground/cpm-fat/tree/8ee6486ea08b04c865f9b2c67a22dcac15e5a1b5
+    ; To clear the screen
+    clear db 27, '[2J' ,27, '[H'
+    len_clear equ $ - clear
+
 section .text
-    global _start ; Start of the program
-    %include "macros.inc"  ; Include macros
+    global _start ; Declere start of the program
+    %include "macros_main.inc"  ; Include macros
 
     extern numcnt ; Include external function
 
 _start:; Save arguments, befor runing the main program
-    pop rdi; argc
-    mov rsi, rsp; argv, copy pointer to the arguments
+    pop rdi                 ; argc
 
+    dec rdi                 ; Decrement argc, for determine the count of arguments
+    cmp rdi, 0
+    je not_provided_argv    ; If not provided arguments, then go to single program execution
+
+    mov rsi, rsp            ; argv, copy pointer to the arguments
     call numcnt
+
+not_provided_argv:
+    print_string not_provided_arguments_for_external_program, len_not_provided_arguments_for_external_program
+    exit 1
 
 ; Zhodnotenie: 
 ; Program je funkčný, bol vypracovany v prostredi Linux(Ubuntu 24.04.1 LTS wsl)
@@ -50,6 +66,10 @@ _start:; Save arguments, befor runing the main program
 ; Po spracovanie vsetkych suborov v programe bude mozne pozerat rozne vypise s roznych suborov pouzitim klaves "j" a " k", pre ukoncenie programu pouzite kombinaciu klaves "Ctrl + C".
 ; v bloky .bss sekcie som uchoval pamet pre rozne subory a stranky.
 ; Taktiez k programu bol prilinkovany subor, ktory obsahuje externe funkcie a hlavnu logiku vytvorenoho programu.
+
+; Doplnok: 
+; Bol pridan subor s macrosmi pre hlavny program. A hlavna logika programu prenesena do externeho programu.
+
 ; Pre spustenie programu: 
 
 ; nasm -f elf64 lib.asm -o lib.o

@@ -15,7 +15,7 @@ section .data
     ;Operator $ read the current position of the diclaration and all next diclarations, 
     ;due to we declare it berfor the message
 
-    clear db 27,'[2J',27,'[H'
+    clear db 27, '[2J' ,27, '[H'
     len_clear equ $ - clear
 
     succsfull_exit db 'Succesfull exit, exit code: 0', 0xa
@@ -135,29 +135,32 @@ section .bss ; segment of non-initialized data
     result_to_display resq 20 ; Result to display
 
 section .text
-    global numcnt    
+    global numcnt
     %include "macros.inc" ; Include macros
 
 numcnt:
+    ; Add start value of this variables
     mov qword [current_page_offset], 0
     mov qword [current_page], 0
     mov qword [current_result_offset], 0
 
-    pop rax     ; argc
-    dec rax     ; Decrement argc, for determine the count of arguments
+    pop rdi     ; argc
+    dec rdi     ; Decrement argc, for determine the count of arguments
 
-    cmp rax, 0
+    cmp rdi, 0
     je no_arguments ; If not provided arguments, then go to single program execution
 
+    mov rsi, rsp 
+
     ; Else get the arguments
-    pop rbx    ; argv[0] is first argument(file name), skip it
+    pop rbx  ; argv[0] is first argument(file name), skip it
 
     ; CHECK ARGUMENTS 
     jmp check_next_argument
 
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
 
-separate_output:
+separate_output: ; Function to separate the output
     print_string screen_separator, len_screen_separator
     ret
 
@@ -168,12 +171,12 @@ read_file_name:;Calculate offset for storing new file name
     
     mov edx, [file_iterator]
     add edx, FILE_NAME_SIZE
-    mov [file_iterator], edx
-    inc byte [count_of_files]
+    mov [file_iterator], edx ; Increment the file iterator
+    inc byte [count_of_files] ; Increment the count of files
 
     jmp check_next_argument ;Check next argument
 
-write_file_name:
+write_file_name: ; Function to writing the current file from provided argument
     cmp byte [rdi + r11], 0
     je return_from_write
     cmp byte [rdi + r11], ' '
@@ -223,11 +226,11 @@ check_next_argument:
 
     jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
 
-set_r_flag:
+set_r_flag: ; Set the -r flag
     mov byte [r_argument_is_presented], 1
     jmp check_next_argument
 
-set_p_flag:
+set_p_flag: ; Set the -p flag
     mov byte [p_argument_is_presented], 1
 
     print_string p_argument, len_p_argument
@@ -241,17 +244,15 @@ end_of_args:; MAIN BODI AFTER READING THE ARGUMENTS
     xor rbx, rbx; offset in the filenames vector
 
     mov byte [current_file], 0
-    jmp iterate_files
+    jmp iterate_files ; Go to the files iteration
 
-    ; ; cmp byte [p_argument_is_presented], 1
-    ; call wait_for_press_enter
-wait_for_press_enter:
+wait_for_press_enter: ; Function to waiting the presed enter
     read_key_from_keyboard input_key ; Read key from keyboard
     cmp byte [input_key], 0x0D   ; (enter)
     je wait_for_press_enter
     ret
 
-iterate_files:
+iterate_files: ; Function to iterate over the files and output the current file information. Also fill the memory of the pages 
     cmp byte [count_of_files], 0 ;test if count of files for processing is 0
     jz success_read_files
 
@@ -284,7 +285,7 @@ iterate_files:
 
     jmp iterate_files
 
-process_file:
+process_file: ; Function to precess riading the current file name and processing the file
     open_file filename, O_RDONLY, 0644; Syscall return the result of the operation in the rax register, so we need check it for errors
 
     cmp rax, 0
@@ -311,12 +312,12 @@ success_read_files:
 
     normal_exit
 
-eror_exit_not_provided_correct_argument:
+eror_exit_not_provided_correct_argument: ; Error exit, not provided correct arguments
     print_string not_provided_correct_arguments, len_not_provided_correct_arguments
     print_string see_documentation_help_msg, len_see_documentation_help_msg
     error_exit comp_error_msg, len_comp_error_msg
 
-no_arguments:
+no_arguments: ; Not provided arguments
     print_string not_provided_arguments, len_not_provided_arguments
     print_string see_documentation_help_msg, len_see_documentation_help_msg
     jmp comp_error
@@ -358,8 +359,7 @@ end_of_file: ;END OF READING FILE
 
     jmp iterate_files
 
-process_reversed_output:
-    ; Do outoput reverse
+process_reversed_output:; Do outoput reversed
     print_string reversed_output_msg, len_reversed_output_msg
 
     ; Out the reversed output
@@ -375,13 +375,13 @@ process_reversed_output:
 
     jmp iterate_files
 
-clean_buffers:
+clean_buffers: ; Function to clean the buffers
     clear_buffer output_vector, BufferSize64
     clear_buffer buffer, BufferSize64
     clear_buffer buffer_int64, 20
     ret
 
-process_paged_output:
+process_paged_output: ; Function to precess the paged output
     ; output_vector had output data 
     copy_to output_vector, pages, BufferSize64, [current_page_offset]
     add qword [current_page_offset], BufferSize64
@@ -392,8 +392,7 @@ process_paged_output:
     call clean_buffers
     jmp iterate_files
 
-process_reversed_paged_output:
- 
+process_reversed_paged_output: ; Function to precess the paged reversed output
     copy_to buffer, pages, BufferSize64, [current_page_offset]
     add qword [current_page_offset], BufferSize64
 
@@ -403,12 +402,12 @@ process_reversed_paged_output:
     call clean_buffers
     jmp iterate_files
 
-pre_slide_pages:
+pre_slide_pages: 
     ; call clear_screen
     print_string p_argument, len_p_argument
     jmp slide_pages
 
-slide_pages:
+slide_pages: ; Function allow use the "j" and "k" buttons for slide
     call clean_buffers
     read_key_from_keyboard input_key ; Read key from keyboard
     
@@ -420,7 +419,7 @@ slide_pages:
 
     jmp slide_pages
 
-next_page:
+next_page: ; Function provide the next page
     ; eror handling
     cmp qword [current_page], BufferSize64*8 - BufferSize64
     je clean_and_return_to_slide_pages
@@ -432,7 +431,7 @@ next_page:
 
     jmp slide_pages
 
-previous_page:
+previous_page: ; Function provide the previous page
     ; eror handling
     cmp qword [current_page], 0
     je clean_and_return_to_slide_pages
@@ -444,7 +443,7 @@ previous_page:
 
     jmp slide_pages
 
-clean_and_return_to_slide_pages:
+clean_and_return_to_slide_pages: ; Clean screen and return to slide pages
     clear_screen
 
     call separate_output
@@ -497,7 +496,7 @@ clean_and_return_to_slide_pages:
 
     jmp slide_pages
 
-show_page:
+show_page: ; Function to show the current page
     push r12
     xor r12, r12
     mov r12, [current_page]
@@ -553,7 +552,7 @@ pre_check_number_is_presented:
     xor r13, r13
     jmp check_number_is_presented
 
-check_number_is_presented:
+check_number_is_presented: ; Function to check if the number is presented
     cmp r13, NUMBER_SIZE
     jge data_not_presented ;ret 
 
@@ -570,12 +569,12 @@ check_number_failed:
     jmp check_number_is_presented
 number_is_presented:
     ret
-data_not_presented:
+data_not_presented: 
     print_string data_not_presented_msg, len_data_not_presented_msg
     call separate_output
     jmp slide_pages
 
-calculate_current_position_count:
+calculate_current_position_count: ; Function to calculate the current page position
     mov rax, [current_page_offset] ; dividend
     xor rdx, rdx ;
     mov rcx, BufferSize64 ; divisor
@@ -600,7 +599,7 @@ calculate_current_position_count:
     print_string buffer_int64, 20
     ret
 
-calculate_position_in_persent:
+calculate_position_in_persent: ; Function to calculate the current page position in persent
     ; (current_page * 100) / current_page_offset
     mov rax, [current_page]
 
@@ -623,29 +622,28 @@ calculate_position_in_persent:
     print_string persent_separator, len_persent_separator
     ret
 
-print_string_separator:
+print_string_separator: ; Function to print the string separator
     print_string string_separator, len_string_separator
     ret
 
-devision_by_zero: 
+devision_by_zero: ; Function to hadle the devision by zero
     mov rbx, 0
     convert_int_to_str buffer_int64, rbx
     print_string buffer_int64, 20
     print_string persent_separator, len_persent_separator
     ret
 
-do_white_space:
+do_white_space: ; Do white space in the output vector
     ; Write space
     mov r9b, 0x20 ; Space
     mov byte [output_vector + r12], r9b 
     inc r12 ; Increment the ouput vector iterator
     ret
 
-count_numbers_loop:
-    ; Set dot flag to 0, this mean that dot was't found
-
-    mov byte [flag], 0
-    mov byte [flag_minus], 0
+count_numbers_loop: ; Fuuncton to find the numbers in the file
+    
+    mov byte [flag], 0  ; Set dot flag to 0, this mean that dot was't found
+    mov byte [flag_minus], 0  ; Set minus flag to 0, this mean that minus was't found
 
     ; Check end of the buffer
     cmp r13, BufferSize64
@@ -658,14 +656,14 @@ count_numbers_loop:
 
     jmp check_it_is_number_count_numbers
 
-check_it_is_number_count_numbers:
+check_it_is_number_count_numbers: ; Check in the sign is above or equal to 0
     cmp r10b, '0'
     jae check_upper_bound_count_numbers
 
     inc r13
     jmp count_numbers_loop
 
-check_upper_bound_count_numbers:
+check_upper_bound_count_numbers: ; Check if the sign is below or equal to 9
     cmp r10b, '9'
     jbe found_number
 
@@ -753,14 +751,14 @@ check_upper_bound_found_dot:
 
     jmp count_numbers_loop ; so , this is not a number, go to finding the next number 
 
-twice_dot_was_found:
+twice_dot_was_found: ; We found maybe the rational number, but it contains the two dots, handle it 
     inc r14        ; Increment number count
     mov byte [output_vector + r12], ' '
     inc r12
 
     jmp count_numbers_loop
 
-up_digit:
+up_digit: ; We write number in the output vector and add the white space, handle logic after the adding the number
     inc r14; Count of numbers
 
     ; Add the white space
@@ -780,7 +778,7 @@ up_dot_and_digit: ; Provide to output vector the dot and number
 
     jmp found_number
 
-up_minus_and_digit:
+up_minus_and_digit: ; Write the minus to the output vector
     mov byte [output_vector + r12], 0x2D ; minus has kod 96
     inc r12 ; Increment the ouput vector iterator
 
@@ -789,7 +787,7 @@ up_minus_and_digit:
 comp_error:
     error_exit comp_error_msg, len_comp_error_msg
 
-isHArgument:
+isHArgument: ; The -h argument is presented  
     ; Provided Instructions
     clear_screen
     print_string help_msg0, len_help_msg0
@@ -800,7 +798,7 @@ isHArgument:
 
     normal_exit ; exit the program
 
-print_count_of_numbers:
+print_count_of_numbers: ; Function for print the count of numbers
     ; Convert the count of numbers to the string, and out it out 
     print_string new_line, len_new_line
     print_string count_of_numbers_msg, len_count_of_numbers_msg
