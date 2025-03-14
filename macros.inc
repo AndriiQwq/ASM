@@ -5,6 +5,10 @@
 ; Using commands like "push" and "pop" for storing their context on the stack, and up it from the stack
 ; Store and return registers, to avoid overwriting the registers and colisions
 ; Using movzx for move value to register and fill the rest of the register with zeros
+; lea (Load Effective Address) load the address of the operand, not a value
+; 64, 32, 16, 8 bit 
+; rax, eax, ax, ah and al 
+; r9, r9d, r9w, r9b
 
 %macro print_string 2
     push rax

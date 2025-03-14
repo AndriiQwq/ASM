@@ -36,7 +36,7 @@ _start:; Save arguments, befor runing the main program
 
     dec rdi                 ; Decrement argc, for determine the count of arguments
     cmp rdi, 0
-    je not_provided_argv    ; If not provided arguments, then go to single program execution
+    je not_provided_argv    ; If not provided arguments, then go to end
 
     call numcnt
 

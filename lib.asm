@@ -156,8 +156,6 @@ numcnt:
     ; CHECK ARGUMENTS 
     jmp check_next_argument
 
-    jne eror_exit_not_provided_correct_argument; NOT PROVIDED CORRECT ARGUMENTS
-
 separate_output: ; Function to separate the output
     print_string screen_separator, len_screen_separator
     ret
@@ -192,7 +190,7 @@ write_char:
     inc r11
     jmp write_file_name
 
-isRArgument: 
+isFArgument: 
     pop rdi ; arg, file name 
     cmp rdi, 1 ; Check if the argument exist
     jl eror_exit_not_provided_correct_argument
@@ -213,7 +211,7 @@ check_next_argument:
 
     ; CHECK FILE NAMES, THEY HAVE FLAG "-f" and body "filename.txt"
     cmp byte [rdi + 1], 'f'
-    je isRArgument
+    je isFArgument
 
     ; Set the -r flag
     cmp byte [rdi + 1], 'r'
@@ -419,7 +417,14 @@ slide_pages: ; Function allow use the "j" and "k" buttons for slide
 
 next_page: ; Function provide the next page
     ; eror handling
+    ; Do control displayed pages, maximum page is 8, 0..7
+    ; Or you can set the maximum page as the maximum offset after the last page  
     cmp qword [current_page], BufferSize64*8 - BufferSize64
+    ; mov rax, [current_page]
+    ; mov rbx, [current_page_offset]
+    ; sub rbx, BufferSize64
+    ; cmp rax, rbx
+
     je clean_and_return_to_slide_pages
 
     add qword [current_page], BufferSize64
